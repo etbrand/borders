@@ -25,6 +25,22 @@ query_details <- function(ID) {
     httr2::req_perform()
 }
 
+query_care_guide <- function(ID) {
+  glue::glue("https://perenual.com/api/species-care-guide-list?species_id={ID}",
+             "&key={Sys.getenv('PERENUAL_KEY')}") |>
+    httr2::request() |>
+    httr2::req_perform()
+}
+
+#TODO: Add error handling
+get_care_guide <- function(id) {
+  id |>
+    query_care_guide() |>
+    httr2::resp_body_string() |>
+    jsonlite::parse_json() |>
+    _$data[[1]]
+}
+
 resp_to_list <- function(resp) {
   resp_list <- resp |>
     httr2::resp_body_string() |>
@@ -61,6 +77,9 @@ add_species_records <- function(species_list, url_args, pages_to_add = 4) {
     purrr::discard(~ .x$id %in% 1:397 ||
                      is.null(.x$default_image$regular_url)) |>
     shuffle_list()
+
+  IDs <- purrr::map(species_list$data, ~ paste0("plant_", .x$id))
+  species_list$data <- purrr::set_names(species_list$data, IDs)
 
   species_list
 }

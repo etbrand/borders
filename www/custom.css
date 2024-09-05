@@ -1,5 +1,74 @@
-#water-icon {
-    vertical-align: top;
-    height: 15px;
-    width: 15px;
+.plant-card-header {
+  font-size: 14px;
+}
+
+.plant-card-body {
+  font-size: 13px;
+}
+
+.plant-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 5px 5px rgba(0,0,0,.12), 0 4px 4px rgba(0,0,0,.06);
+  transition: .3s transform cubic-bezier(.155,1.105,.295,1.12),.3s box-shadow,.3s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
+}
+
+.simple-plant-card {
+  border: none;
+}
+
+.border-stub {
+  font-size: 15px;
+  border-radius: 5px;
+  background: #F8F8F8;
+  border: 1px solid #DDDFDF;
+  padding: 5px;
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+.border-stub:hover {
+  transform: scale(1.01);
+  box-shadow: 0 4px 4px rgba(0,0,0,.12), 0 3px 3px rgba(0,0,0,.06);
+  transition: .3s transform cubic-bezier(.155,1.105,.295,1.12),.3s box-shadow,.3s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
+}
+
+
+.border-stub-x {
+  padding-right: 10px;
+  color: #AAAAAA;
+}
+
+.border-stub-x:hover {
+  color: #919191;
+  transform: scale(1.1);
+  transition: .1s transform cubic-bezier(.155,1.105,.295,1.12),.1s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
+}
+
+.plant-color-tooltip {
+  display: inline;
+  position: relative;
+  background-color: white;
+  border: solid;
+  border-width: 2px;
+  border-radius: 5px;
+  padding: 5px;
+}
+
+.plant-guide-header {
+  font-size: 38px;
+  padding-bottom: 14px;
+}
+
+.plant-guide-header:after {
+  border: 1px solid #AAAAAA;
+  content: ' ';
+  display: block;
+}
+
+.toc-title {
+  font-size: 18px;
+}
+
+.toc-heading {
+  font-size: 16px;
 }

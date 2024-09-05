@@ -16,57 +16,71 @@ plant_card_header <- function(plant_type, common_name) {
   )
 
   bslib::card_header(
+    class = "plant-card-header",
     tags$span(
       tags$img(src = glue::glue("www/noun_icons/{header_icon}.svg"),
-               height = "25", width = "25"),
+               height = 20, width = 20),
       stringr::str_to_title(common_name)
     )
   )
 
 }
 
-plant_card_UI <- function(id, species_record, details_record) {
-  ns <- NS(id)
+plant_card_UI <- function(id, details_record, simplified = FALSE) {
+  ns <- shiny::NS(id)
   bslib::card(
     id = ns("card"),
-    plant_card_header(details_record$type, species_record$common_name),
+    class = if (simplified) "simple-plant-card" else "plant-card",
+    if (!simplified) {
+      plant_card_header(
+        plant_type = details_record$type,
+        common_name = details_record$common_name
+      )
+    },
     bslib::card_image(
-      file = species_record$default_image$regular_url,
-      alt = species_record$common_name
+      file = details_record$default_image$regular_url,
+      alt = details_record$common_name
     ),
     bslib::card_body(
+      class = "plant-card-body",
       gap = 0,
+      stringr::str_to_title(details_record$common_name),
       tags$em(details_record$scientific_name),
       hardiness_info(details_record$hardiness),
       sunlight_info(details_record$sunlight),
       watering_info(details_record$watering),
-      # actionButton(
-      #   inputId = ns("add_to_border"),
-      #   label = "Add to border",
-      #   class = "mt-auto"
-      # )
-      tags$div(
-        shinyWidgets::prettyToggle(
-          inputId = ns("add_to_border"),
-          label_on = "In your border",
-          label_off = "Add to border",
-        ),
-        class = "mt-auto"
-      )
-    )
+      if (!simplified) {
+        tags$div(
+          class = "d-flex justify-content-end",
+          shinyjs::hidden(
+            tags$div(
+              id = ns("checked"),
+              icon("check")
+            )
+          )
+        )
+      }
+    ),
+    onclick = if (!simplified) paste0("toggleColor('", ns("card"), "');")
   )
 }
 
-plant_card_server <- function(id, your_border) {
+plant_card_server <- function(id, species_details, your_border) {
   moduleServer(
     id,
     function(input, output, session) {
-      observeEvent(input$add_to_border, {
-        plant_ID <- gsub("plant_card_", "", id)
-        if (input$add_to_border) {
-          your_border(c(your_border(), plant_ID))
+
+      add_or_remove <- function(id, your_border) {
+        if (id %in% names(your_border())) {
+          your_border(pop_ID(your_border(), id))
+        } else {
+          your_border(c(your_border(), rlang::list2(!!id := species_details)))
         }
-      }, ignoreInit = TRUE)
+        shinyjs::toggle("checked")
+      }
+
+      shinyjs::onclick("card", add_or_remove(id, your_border))
+
     }
   )
 }
