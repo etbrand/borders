@@ -3,10 +3,10 @@ care_guide_UI <- function(id) {
   bslib::nav_panel(
     title = "Care guide",
     tags$div(
-      class = "grid",
-      tags$div(class = "g-col-11", uiOutput(ns("content"))),
+      class = "d-flex gap-1 justify-content-between",
+      tags$div(uiOutput(ns("content"))),
       tags$div(
-        class = "g-col-1 mt-2 me-2 align-self-start sticky-top",
+        class = "mt-2 align-self-start sticky-top",
         uiOutput(ns("toc"))
       )
     )
@@ -22,31 +22,31 @@ care_guide_server <- function(id, your_border) {
 
       toc_entry <- function(care_guide) {
         id <- ns(paste0("plant_", care_guide$species_id))
-        tags$li(
+        tags$nav(
           tags$a(
             href = paste0("#", id),
-            class = "nav-link",
-            h3(class = "toc-heading",
-               stringr::str_to_title(care_guide$common_name))
+            class = "nav-link toc-heading",
+            stringr::str_to_title(care_guide$common_name)
           )
         )
       }
 
       make_guide_content <- function(care_guide, details_record, side) {
         id <- ns(paste0("plant_", care_guide$species_id))
-        sct1 <- care_guide$section[[1]]
-        sct2 <- care_guide$section[[2]]
-        sct3 <- care_guide$section[[3]]
+        card_offset <- if (side == "right") "offset-md-1"
+        card_order <- if (side == "left") "order-md-2 order-xs-1"
         plant_card <- tags$div(
-          class = "g-col-3 align-self-start sticky-top",
+          class = paste("col-md-3 align-self-start sticky-top", card_offset,
+                        card_order),
           plant_card_UI(
             id = paste0("plant_", care_guide$species_id),
             details_record = details_record,
             simplified = TRUE
           )
         )
+        left_class <- if (side == "left") "offset-md-1 order-md-1 order-xs-2"
         text_content <- tags$div(
-          class = "g-col-9",
+          class = paste("col-md-6", left_class),
           tags$h2(
             id = id,
             class = "plant-guide-header",
@@ -55,27 +55,23 @@ care_guide_server <- function(id, your_border) {
           tags$h3(id = paste0(id, "_description"), "Description"),
           tags$p(details_record$description),
           tags$h3(
-            id = paste0(id, "_", sct1$type),
-            stringr::str_to_title(sct1$type)
+            id = paste0(id, "_", care_guide$section[[1]]$type),
+            stringr::str_to_title(care_guide$section[[1]]$type)
           ),
-          tags$p(sct1$description),
+          tags$p(care_guide$section[[1]]$description),
           tags$h3(
-            id = paste0(id, "_", sct2$type),
-            stringr::str_to_title(sct2$type)
+            id = paste0(id, "_", care_guide$section[[2]]$type),
+            stringr::str_to_title(care_guide$section[[2]]$type)
           ),
-          tags$p(sct2$description),
+          tags$p(care_guide$section[[2]]$description),
           tags$h3(
-            id = paste0(id, "_", sct3$type),
-            stringr::str_to_title(sct3$type)
+            id = paste0(id, "_", care_guide$section[[3]]$type),
+            stringr::str_to_title(care_guide$section[[3]]$type)
           ),
-          tags$p(sct3$description)
+          tags$p(care_guide$section[[3]]$description)
         )
 
-        if (side == "right") {
-          tags$div(class = "grid mt-4 ms-4 me-4", plant_card, text_content)
-        } else {
-          tags$div(class = "grid mt-4 ms-4 me-4", text_content, plant_card)
-        }
+        tags$div(class = "row mt-2", plant_card, text_content)
 
       }
 
@@ -109,7 +105,16 @@ care_guide_server <- function(id, your_border) {
 
       output$content <- renderUI({
         req(care_guide_data())
-        purrr::pmap(unname(care_guide_data()), make_guide_content)
+        tags$div(
+          `data-bs-spy` = "scroll",
+          `data-bs-target` = paste0("#", ns("toc")),
+          `data-bs-offset` = "0",
+          tabindex = "0",
+          height = "500",
+          `overflow-y` = "scroll",
+          style = "position: relative;",
+          purrr::pmap(unname(care_guide_data()), make_guide_content)
+        )
       })
 
       output$toc <- renderUI({
@@ -117,8 +122,8 @@ care_guide_server <- function(id, your_border) {
           role = "doc-toc",
           tags$h2(class = "toc-title", "Jump to:"),
           tags$ul(
-            style = "list-style-type: none; padding-inline-start: 15px;",
-            tagList(purrr::map(care_guide_data()$care_guides, toc_entry))
+            class = "toc-list",
+            purrr::map(care_guide_data()$care_guides, toc_entry)
           )
         )
       })
