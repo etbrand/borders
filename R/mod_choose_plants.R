@@ -21,53 +21,29 @@ make_plant_stub <- function(ns, plant_id, details_record) {
   )
 }
 
+make_filters <- function(id, ns) {
+  tags$div(
+    class = "mb-0",
+    shinyWidgets::pickerInput(
+      inputId = ns(id),
+      label = tags$span(
+        #style = "font-size: 14px;",
+        paste0(stringr::str_to_sentence(gsub("_", " ", id)), ":")
+      ),
+      choices = filter_choices[[id]],
+      selected = filter_choices[[id]],
+      multiple = TRUE
+    )
+  )
+}
+
 choose_plants_UI <- function(id) {
   ns <- NS(id)
 
-  make_input <- function(id, ns) {
-    shinyWidgets::pickerInput(
-      inputId = ns(id),
-      label = paste0(stringr::str_to_sentence(id), ":"),
-      choices = input_choices[[id]],
-      multiple = id != "hardiness"
-    )
-  }
-
-  # bslib::page_sidebar(
-  #   title = tags$div(
-  #     style = "display: flex;",
-  #     tags$div(
-  #       style = "align-self: center;",
-  #       tags$img(src = 'www/logo.svg', height = 30)
-  #     ),
-  #     tags$h1(class = "bslib-page-title navbar-brand", "Borders")
-  #   ),
-  #   theme = bslib::bs_theme(bootswatch = "journal", primary = "#494b4d"),
-  #  sidebar = bslib::sidebar(
-  #   actionButton(
-  #     inputId = ns("get_ideas"),
-  #     label = "Refresh plant list"
-  #   ),
-  #   bslib::accordion(
-  #     bslib::accordion_panel(
-  #       "Basic options",
-  #       #icon = bsicons::bs_icon("menu-app"),
-  #       purrr::map(names(input_choices), ~ make_input(.x, ns))
-  #     ),
-  #     bslib::accordion_panel(
-  #       "Advanced options"
-  #       #icon = bsicons::bs_icon("sliders"),
-  #     )
-  #   )
-  # ),
   bslib::nav_panel(
     title = "Choose plants",
     tags$div(
       class = "container",
-      #bslib::layout_column_wrap(
-      #width = NULL,
-      #style = bslib::css(grid_template_columns = "3fr 1fr"),
-      #bslib::card(
       tags$div(
         class = "d-inline-flex gap-2 mt-2 mb-4 align-self-start sticky-top",
         shinyWidgets::dropdownButton(
@@ -97,7 +73,7 @@ choose_plants_UI <- function(id) {
             )
           ),
           tags$div(
-            class = "d-flex justify-content-end mb-4",
+            class = "d-flex mb-4",
             actionButton(
               class = "btn-primary btn-spinner btn-block w-100 h-100",
               inputId = ns("search"),
@@ -113,19 +89,19 @@ choose_plants_UI <- function(id) {
           class = "btn btn-primary",
           type = "button",
           `data-bs-toggle` = "offcanvas",
-          `data-bs-target` = "#filters",
+          `data-bs-target` = paste0("#", ns("filters")),
           `aria-controls` = "offcanvasExample",
           tags$span(icon("filter"), "Filter plant list")
         ),
         tags$div(
-          id = "filters",
+          id = ns("filters"),
           class = "offcanvas offcanvas-start",
           tabIndex = "-1",
-          `aria-labelledby` = "offcanvasExampleLabel",
+          `aria-labelledby` = ns("filters_header"),
           tags$div(
             class = "offcanvas-header",
             tags$h5(
-              id = "offcanvasExampleLabel",
+              id = ns("filters_header"),
               class = "offcanvas-title",
               tags$span("Filters", class = "ms-2")
             ),
@@ -137,24 +113,43 @@ choose_plants_UI <- function(id) {
             )
           ),
           tags$div(
-            class = "offcanvas-body",
+            class = "offcanvas-body d-flex justify-content-center",
             tags$div(
-              "Some text as placeholder. In real life you can have the elements you have chosen. Like, text, images, lists, etc."
+              purrr::map(names(filter_choices), ~ make_filters(.x, ns)),
+              tags$div(
+                class = "d-flex mt-4",
+                actionButton(
+                  class = "btn-primary btn-spinner btn-block w-100 h-100",
+                  inputId = ns("apply_filters"),
+                  label = tags$span(
+                    id = ns("apply_filters_text"),
+                    class = "apply-filters-ready"
+                  )
+                )
+              )
             )
           )
         )
       ),
-      uiOutput(ns("image_cards"))
-    )#,
-    #bslib::card(
-    #  bslib::card_header("Your border"),
-    # tags$div(
-    #   tags$div(
-    #     id = ns("empty_border"),
-    #     "Nothing in your border. Choose plants from the plant list."
-    #   ),
-    #   tags$div(id = ns("border_plants"))
-    # )
+      tags$div(
+        class = "d-flex flex-wrap",
+        #class = "grid",
+        #style = paste("grid-template-columns: repeat(auto-fit,",
+        #              "minmax(min(100%, max(175px, 20%)), 1fr));"),
+        uiOutput(ns("image_cards")),
+        tags$div(
+          class = "d-flex flex-grow-1 justify-content-center align-items-center",
+          actionButton(
+            class = "btn-primary btn-spinner",# btn-block w-100 h-100",
+            inputId = ns("show_more"),
+            label = tags$span(
+              id = ns("show_more_text"),
+              class = "show-more-ready"
+            )
+          )
+        )
+      )
+    )
   )
 }
 
@@ -180,15 +175,23 @@ choose_plants_server <- function(id, zone, city = NULL) {
         server = TRUE
       )
 
-      default_species_list <- default_zone_data[[zone]]$species_list$data
-      default_species_details <- default_zone_data[[zone]]$species_details
+      default_details <- default_zone_data[[zone]]$details
 
-      #TODO: Rename to plant_info and remove other ref?
-      species_info <- reactiveValues(
-        #api_ids = gsub("plant_", "", names(default_species_list)),
-        species_list = default_species_list,
-        species_details = default_species_details
+      plant_list <- reactiveValues(
+        queried_pages = default_zone_data[[zone]]$queried_pages,
+        filter_matches = default_details$ids,
+        details = default_details$data
       )
+
+      observeEvent(input$show_more, {
+        shinyjs::removeClass(id = "show_more_text", "show-more-ready")
+        shinyjs::addClass(id = "show_more_text", "show-more-busy")
+        shinyjs::disable("show_more")
+        Sys.sleep(5)
+        shinyjs::enable("show_more")
+        shinyjs::removeClass(id = "show_more_text", "show-more-busy")
+        shinyjs::addClass(id = "show_more_text", "show-more-ready")
+      })
 
       search_type <- reactiveVal("by_common_name")
       observeEvent(input$switch_search, {
@@ -211,7 +214,6 @@ choose_plants_server <- function(id, zone, city = NULL) {
       observeEvent(input$search, {
         plant_name <- input[[sub("by_", "search_", search_type())]]
         col_name <- sub("by_", "", search_type())
-        #species_info$api_ids <-
         new_search_ids <- search_list[[zone]][[search_type()]] |>
           dplyr::filter(!!rlang::sym(col_name) == plant_name) |>
           dplyr::pull(id)
@@ -223,99 +225,111 @@ choose_plants_server <- function(id, zone, city = NULL) {
         shinyjs::removeClass(id = "search_text", "search-ready")
         shinyjs::addClass(id = "search_text", "search-busy")
         shinyjs::disable("search")
-        new_details <- NULL
-        for (id in search_ids()) {
-          resp <- tryCatch(query_details(id), error = identity)
-          if (inherits(resp, "error") || resp$status_code != 200) {
-            new_details[[paste0("plant_", id)]] <- "api_error"
-          } else {
-            new_details[[paste0("plant_", id)]] <- query_details(id) |>
-              httr2::resp_body_string() |>
-              jsonlite::parse_json()
-          }
-        }
+        details <- get_details_batch(search_ids())
         shinyjs::enable("search")
         shinyjs::removeClass(id = "search_text", "search-busy")
         shinyjs::addClass(id = "search_text", "search-ready")
-        purrr::imap(new_details, ~ make_plant_stub(ns, .y, .x))
+        purrr::imap(details$data, ~ make_plant_stub(ns, .y, .x))
       })
 
-      # observeEvent(species_info$api_ids, {
-      #   new_details <- NULL
-      #   for (id in species_info$api_ids) {
-      #     resp <- tryCatch(query_details(id), error = identity)
-      #     if (inherits(resp, "error") || resp$status_code != 200) {
-      #       new_details[[paste0("plant_", id)]] <- "api_error"
-      #     } else {
-      #       new_details[[paste0("plant_", id)]] <- query_details(id) |>
-      #         httr2::resp_body_string() |>
-      #         jsonlite::parse_json()
-      #     }
-      #   }
-      #   species_info$species_details <- new_details
-      #}, ignoreInit = TRUE)
+      observeEvent(input$apply_filters, {
+        shinyjs::removeClass(id = "apply_filters_text", "apply-filters-ready")
+        shinyjs::addClass(id = "apply_filters_text", "apply-filters-busy")
+        shinyjs::disable("apply_filters")
+        url_args <- make_url_args(input, names(filter_choices))
 
-      species_response <- eventReactive(input$get_ideas, {
-        url_args <- make_url_args(input, names(input_choices))
-        initial_resp <- do.call(query_species_list, url_args)
+        #TODO: Change to use inputs
+        addl_filters <- list(filter_no_img = TRUE, filter_trees = TRUE)
 
-        # TODO: Add error handling
+        if (isTruthy(input$flower_color)) {
+          addl_filters <-
+            c(addl_filters, list(flower_color = input$flower_color))
+        }
 
-        add_species_records(resp_to_list(initial_resp))
+        page1 <- query_list_safe(url_args, addl_filters)
+
+        if (!identical(page1, "api_error")) {
+          page1_ids <- purrr::map_vec(page1$data, ~ .x$id)
+          id_list <- query_addl_pages(
+            ids = page1_ids,
+            page_count = page1$page_count,
+            url_args = url_args,
+            addl_filters = addl_filters,
+            imgs = purrr::map(page1$data, ~ .x$default_image)
+          )
+        }
+
+        if (!identical(id_list, "api_error")) {
+          attempts <- 1
+          # Force break on null return
+          n_ids <- if (is.null(id_list)) 12 else length(id_list$ids)
+          while (attempts <= 7 && n_ids < 12 &&
+                 length(id_list$queried_pages) < page1$page_count) {
+            id_list <- query_addl_pages(
+              ids = id_list$ids,
+              page_count = page1$page_count,
+              url_args = url_args,
+              addl_filters = addl_filters,
+              imgs = id_list$imgs,
+              queried_pages = id_list$queried_pages,
+              pages_to_add = 1
+            )
+            # TODO: Add Sys.sleep?
+            attempts <- attempts + 1
+          }
+        }
+        details <- get_details_batch(id_list$ids)
+        #list(details = details, queried_pages = id_list$queried_pages)
+        if (any(purrr::map_vec(details$data, ~ is.null(.x$default_image$regular_url)))) {
+          browser()
+        }
+
+        if (!identical(details, "api_error")) {
+          plant_list$queried_pages <- id_list$queried_pages
+          plant_list$filter_matches <- details$rem_ids
+          plant_list$details <- details$data
+          purrr::iwalk(details$data, ~ plant_card_server(.y, .x, your_border))
+        } else {
+          plant_list$queried_pages <- NULL
+          plant_list$filter_matches <- NULL
+          plant_list$details <- "api_error"
+        }
+
+        shinyjs::enable("apply_filters")
+        shinyjs::removeClass(id = "apply_filters_text", "apply-filters-busy")
+        shinyjs::addClass(id = "apply_filters_text", "apply-filters-ready")
+
       })
-
-      # TODO: Is this necessary?
-      species_preview <- reactive({
-        species_response()$data[1:12]
-      })
-
-      displayed_details <- reactiveVal(default_species_details)
-
-      #details_preview <- reactive({
-      #  resps <- purrr::map(species_preview(), ~ query_details(.x$id))
 
       #TODO: Add error handling
-
-      #  purrr::map(resps, httr2::resp_body_json)
-      #})
-      #style = "grid-template-columns: repeat(auto-fit, minmax(min(100%, max(175px, 24%)), 1fr));"
       output$image_cards <- renderUI({
-        image_cards <- species_info$species_details |>
+        if (identical(plant_list$details, "api_error")) {
+          browser()
+        }
+        image_cards <- plant_list$details |>
           purrr::imap(~ plant_card_UI(ns(.y), .x))
-        tags$div(
-          class = "grid",
-          style = "grid-template-columns: repeat(auto-fit, minmax(min(100%, max(175px, 20%)), 1fr));",
-          #bslib::layout_column_wrap(
-          # width = NULL,
-          #  style = bslib::css(
-          #    grid_template_columns =
-          #      "repeat(auto-fit, minmax(min(100%, max(175px, 24%)), 1fr));"
-          #  ),
-          !!!unname(image_cards)
-        )
+        tagList(!!!unname(image_cards))
       })
 
+      border_ids <- reactiveVal()
       your_border <- reactiveVal()
 
-      default_species_details |>
+      default_details$data |>
         purrr::iwalk(~ plant_card_server(.y, .x, your_border))
 
-
-      border_IDs <- reactiveVal()
-
-      remove_plant_stub <- function(border_IDs, plant) {
-        border_IDs(setdiff(border_IDs(), plant))
+      remove_plant_stub <- function(border_ids, plant) {
+        border_ids(setdiff(border_ids(), plant))
         shiny::removeUI(selector =  paste0("#", plant, "_stub"))
-        if (rlang::is_empty(border_IDs())) {
+        if (rlang::is_empty(border_ids())) {
           shinyjs::show("empty_border", asis = TRUE)
         }
       }
 
       observeEvent(your_border(), {
-        added_plant <- setdiff(names(your_border()), border_IDs())
-        removed_plant <- setdiff(border_IDs(), names(your_border()))
+        added_plant <- setdiff(names(your_border()), border_ids())
+        removed_plant <- setdiff(border_ids(), names(your_border()))
         if (not_empty(added_plant)) {
-          if (rlang::is_empty(border_IDs())) {
+          if (rlang::is_empty(border_ids())) {
             shinyjs::hide("empty_border", asis = TRUE)
           }
           plant_info <- your_border()[[added_plant]]
@@ -341,8 +355,8 @@ choose_plants_server <- function(id, zone, city = NULL) {
           shinyjs::onclick(
             paste0("remove_", added_plant),
             {
-              remove_plant_stub(border_IDs, added_plant)
-              your_border(pop_ID(your_border(), added_plant))
+              remove_plant_stub(border_ids, added_plant)
+              your_border(pop_id(your_border(), added_plant))
               shinyjs::toggle(paste0(added_plant, "-checked"))
               shinyjs::runjs(
                 paste0("toggleColor('", ns(added_plant), "-card');")
@@ -350,10 +364,10 @@ choose_plants_server <- function(id, zone, city = NULL) {
             },
             asis = TRUE
           )
-          border_IDs(c(border_IDs(), added_plant))
+          border_ids(c(border_ids(), added_plant))
         }
         if (not_empty(removed_plant)) {
-          remove_plant_stub(border_IDs, removed_plant)
+          remove_plant_stub(border_ids, removed_plant)
         }
       }, ignoreNULL = FALSE)
 

@@ -3,18 +3,19 @@ pkgload::load_all()
 # Get default data to populate the app on startup
 get_zone_data <- function(zone) {
   message(paste0("Fetching data for zone ", zone, "..."))
-  resp <- query_species_list(hardiness = hardiness_range(zone))
-  species_list <- resp_to_list(resp) |>
-    add_species_records(list(hardiness = hardiness_range(zone)))
-  species_list$data <- species_list$data[1:12]
-  species_details <- species_list$data |>
-    purrr::map(~ query_details(.x$id)) |>
-    purrr::map(httr2::resp_body_json)
+  page1 <- query_list_safe(hardiness = hardiness_range(zone))
+  page1_ids <- purrr::map_vec(page1$data, ~ .x$id)
+  id_list <- query_addl_pages(
+    ids = page1_ids,
+    page_count = page1$page_count,
+    url_args = list(hardiness = hardiness_range(zone))
+  )
+  details <- get_details_batch(id_list$ids)
   Sys.sleep(15)
-  list(species_list = species_list, species_details = species_details)
+  list(details = details, queried_pages = id_list$queried_pages)
 }
 
-hardiness_zones <- 2:12
+hardiness_zones <- 3:11
 default_zone_data <- hardiness_zones |>
   purrr::map(get_zone_data) |>
   purrr::set_names(paste0("zone", hardiness_zones))
