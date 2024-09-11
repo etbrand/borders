@@ -72,3 +72,97 @@
 .toc-heading {
   font-size: 16px;
 }
+
+.toc-heading:active {
+  color: #D8D8D8;
+}
+
+.toc-list {
+  list-style-type: none;
+  padding-inline-start: 15px;
+  border-left: 1px solid #D8D8D8;
+}
+
+.btn-discreet {
+  font-size: 12px;
+  color: #494b4d !important;
+  border: none;
+  background-color: transparent;
+}
+
+.btn-discreet:hover {
+  background-color: #D8D8D8 !important;
+}
+
+.search-sn:after {
+  content: "Search by scientific name" !important;
+}
+
+.search-cn:after {
+    content: "Search by common name" !important;
+}
+
+.search-busy:after {
+  content: "Searching..." !important;
+}
+
+.search-ready:after {
+  content: "Search" !important;
+}
+
+.show-more-busy:after {
+  content: "Finding more plants..." !important;
+}
+
+.show-more-ready:after {
+  content: "Show more" !important;
+}
+
+.btn-spinner:before {
+  content: "\f110";
+  display: inline-block;
+  vertical-align: middle;
+  font-family: "Font Awesome 5 Free";
+  -webkit-font-smoothing: antialiased;
+  font-style: normal;
+  font-variant: normal;
+  text-rendering: auto;
+  line-height: 1;
+  font-weight: 900;
+  animation: fa-spin 2s linear infinite;
+  opacity: 0;
+  width: 0;
+}
+
+.btn-spinner:disabled:before {
+  opacity: 1;
+  width: auto;
+}
+
+.offcanvas-title:before {
+  border: 1px solid #AAAAAA;
+  content: ' ';
+}
+
+/*
+.filter-option {
+  font-size: 14px;
+}
+*/
+.control-label {
+  margin-bottom: 0.2em !important;
+}
+
+.shiny-input-container {
+  margin-bottom: 0.4em !important;
+}
+
+.apply-filters-busy:after {
+  content: "Applying filters..." !important;
+}
+
+.apply-filters-ready:after {
+  content: "Apply filters" !important;
+}
+
+
