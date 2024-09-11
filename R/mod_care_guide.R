@@ -82,7 +82,7 @@ care_guide_server <- function(id, your_border) {
       observeEvent(your_border(), {
         #TODO: Change this to a message when nothing in border
         req(your_border())
-        api_ids <- as.numeric(gsub("plant_", "", names(your_border())))
+        api_ids <- to_api_ids(names(your_border()))
         new_care_guide_ids <- sort(api_ids[api_ids <= 3000])
         if (!identical(new_care_guide_ids, care_guide_ids())) {
           care_guide_ids(new_care_guide_ids)
@@ -91,8 +91,8 @@ care_guide_server <- function(id, your_border) {
 
       care_guides <- reactive({
         new_care_guides <- care_guide_ids() |>
-          purrr::map(get_care_guide) |>
-          purrr::set_names(paste0("plant_", care_guide_ids()))
+          purrr::map(query_care_guide_safe) |>
+          set_plant_names()
       })
 
       care_guide_data <- reactive({

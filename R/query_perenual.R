@@ -1,5 +1,14 @@
 #' @import jsonlite httr2
 
+make_url_args <- function(input, input_ids) {
+  input_ids |>
+    purrr::map(~ if (.x == "flower_color") { NULL } else { input[[.x]] }) |>
+    purrr::set_names(input_ids) |>
+    purrr::compact()
+}
+
+# Functions for querying the species list endpoint ----
+
 query_species_list <- function(...) {
   params <- list(..., indoor = 0)
   single_params <- purrr::discard(params, ~length(.x) > 1)
@@ -34,7 +43,7 @@ query_list_safe <- function(url_args, addl_filters) {
       purrr::discard(~ is.null(.x$default_image$regular_url))
   }
 
-  if (addl_filters$filter_no_trees %||% FALSE) {
+  if (addl_filters$filter_trees %||% FALSE) {
     resp_list$data <- purrr::discard(resp_list$data, ~ .x$id %in% tree_ids)
   }
 
@@ -51,6 +60,41 @@ query_list_safe <- function(url_args, addl_filters) {
   )
 
 }
+
+# The first response will only return page 1 of results. Get additional pages
+query_addl_pages <- function(url_args, addl_filters, rem_pages,
+                             pages_to_add = 4) {
+
+  print("Queried another page...")
+
+  if (length(rem_pages) == 0) {
+    return(NULL)
+  }
+
+  if (length(rem_pages) > pages_to_add) {
+    addl_pages <- sample(rem_pages, pages_to_add)
+  } else {
+    addl_pages <- rem_pages
+  }
+
+  return_list <- list(rem_pages = setdiff(rem_pages, addl_pages))
+  for (page in addl_pages) {
+    addl_response <-
+      query_list_safe(url_args = c(url_args, page = page), addl_filters)
+    if (identical(addl_response, "api_error")) {
+      return("api_error")
+    }
+    addl_ids <- unname(purrr::map_vec(addl_response$data, ~ .x$id))
+    addl_imgs <- purrr::map(addl_response$data, ~ .x$default_image)
+    return_list$ids <- c(return_list$ids, addl_ids)
+    return_list$imgs <- c(return_list$data, addl_imgs)
+  }
+
+  return_list
+
+}
+
+# Functions for querying the details endpoint ----
 
 query_details <- function(id) {
   glue::glue("https://perenual.com/api/species/details/{id}?",
@@ -71,22 +115,6 @@ query_details_safe <- function(id) {
   details_record
 }
 
-query_care_guide <- function(id) {
-  glue::glue("https://perenual.com/api/species-care-guide-list?species_id={id}",
-             "&key={Sys.getenv('PERENUAL_KEY')}") |>
-    httr2::request() |>
-    httr2::req_perform()
-}
-
-#TODO: Add error handling; change name to query_care_guide_safe; add different code for no care guides available
-get_care_guide <- function(id) {
-  id |>
-    query_care_guide() |>
-    httr2::resp_body_string() |>
-    jsonlite::parse_json() |>
-    _$data[[1]]
-}
-
 #TODO: Can remove?
 resp_to_list <- function(resp) {
   resp_list <- resp |>
@@ -95,65 +123,14 @@ resp_to_list <- function(resp) {
   list(data = resp_list$data, page_count = resp_list$last_page)
 }
 
-make_url_args <- function(input, input_ids) {
-  input_ids |>
-    purrr::map(~ if (.x == "flower_color") { NULL } else { input[[.x]] }) |>
-    purrr::set_names(input_ids) |>
-    purrr::compact()
-}
+query_details_batch <- function(ids) {
 
-# The first response will only return page 1 of results. Get additional pages
-query_addl_pages <- function(ids, page_count, url_args, addl_filters,
-                             imgs = NULL, queried_pages = 1, pages_to_add = 4) {
-  print("Queried another page...")
-  if (page_count == 1) {
-    return(NULL)
-  } else {
-    addl_pages <- setdiff(2:page_count, queried_pages)
-    if (length(addl_pages) == 0) {
-      return(NULL)
-    }
-    if (page_count >= pages_to_add + 1) {
-      addl_pages <- sample(addl_pages, pages_to_add)
-    }
-  }
-
-  species_list <- NULL
-  for (page in addl_pages) {
-    addl_response <-
-      query_list_safe(url_args = c(url_args, page = page), addl_filters)
-    if (identical(addl_response, "api_error")) {
-      return("api_error")
-    }
-    species_list$data <- c(species_list$data, addl_response$data)
-  }
-
-  # Show plant list in random order
-  ids <- sample(c(ids, purrr::map_vec(species_list$data, ~ .x$id)))
-
-  # Sometimes an entry in the plant list will contain images but they're not
-  # included in the details entry
-
-  #if (length(species_list$data) > 0) browser()
-
-  print(paste("Current images:", paste(names(imgs), collapse = " ")))
-  print(paste(names(purrr::map(species_list$data, ~ .x$default_image)), collapse = " "))
-
-  list(
-    ids = ids,
-    imgs = c(imgs, purrr::map(species_list$data, ~ .x$default_image)),
-    queried_pages = c(queried_pages, addl_pages)
-  )
-
-}
-
-get_details_batch <- function(ids) {
-
-  # Try to get 12 valid records to display, but don't try too hard
+  # Try to get 12 valid records to display
   attempts <- 0
   details <- NULL
   while(all(attempts < length(ids), length(details) < 12, attempts < 20)) {
     id <- ids[attempts + 1]
+    print(paste("Trying id", id))
     details_record <- query_details_safe(id)
     if (identical(details_record, "api_error")) {
       message(paste("API error occurred for id ", id))
@@ -162,7 +139,9 @@ get_details_batch <- function(ids) {
     if (identical(details_record, "invalid_record")) {
       message(paste("Invalid record for id ", id))
     } else {
+      print("Successful!")
       details[[paste0("plant_", id)]] <- details_record
+      print(paste0("Length from details batch: ", length(details)))
     }
     attempts <- attempts + 1
   }
@@ -171,4 +150,20 @@ get_details_batch <- function(ids) {
 
 }
 
+# Functions for querying the care guide endpoint ----
 
+query_care_guide <- function(id) {
+  glue::glue("https://perenual.com/api/species-care-guide-list?species_id={id}",
+             "&key={Sys.getenv('PERENUAL_KEY')}") |>
+    httr2::request() |>
+    httr2::req_perform()
+}
+
+#TODO: Add error handling; add different code for no care guides available
+query_care_guide_safe <- function(id) {
+  id |>
+    query_care_guide() |>
+    httr2::resp_body_string() |>
+    jsonlite::parse_json() |>
+    _$data[[1]]
+}

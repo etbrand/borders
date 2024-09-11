@@ -8,9 +8,25 @@ not_empty <- Negate(rlang::is_empty)
 
 multi_fn <- function(vect) paste0("^IN(", paste0(vect, collapse = ","), ")")
 
-shuffle_list <- function(list) list[sample(1:length(list))]
+pop_id <- function(list, id) { list[[id]] <- NULL; list }
 
-pop_ID <- function(list, ID) { list[[ID]] <- NULL; list }
+to_api_ids <- function(plant_id) as.numeric(gsub("plant_", "", plant_id))
+
+sample2 <- function(x) {
+  if (length(x) == 1) {
+    return(x)
+  }
+  sample(x)
+}
+
+set_plant_names <- function(plant_data) {
+  if (length(plant_data) == 0) {
+    return(plant_data)
+  }
+  plant_data |>
+    purrr::map(~ paste0("plant_", .x$id)) |>
+    purrr::set_names(plant_data, nm = _)
+}
 
 # API responses are better behaved when hardiness is a range
 hardiness_range <- function(zone) {
@@ -20,9 +36,18 @@ hardiness_range <- function(zone) {
 
 # Plant types are messy; this cleans them up
 simplify_plant_type <- function(plant_type) {
+
+  if (!is.character(plant_type)) {
+    return("Not valid")
+  }
+
   type_like <- function(pattern) grepl(pattern, plant_type, ignore.case = TRUE)
-  if (type_like("flower")) {
+
+  if (type_like("flower|violet|begonia|aster|iris")) {
     return("Flower")
+  }
+  if (type_like("fruit")) {
+    return("Fruit")
   }
   if (type_like("shrub")) {
     return("Shrub")
@@ -33,13 +58,22 @@ simplify_plant_type <- function(plant_type) {
   if (type_like("conifer")) {
     return("Conifer")
   }
-  if (type_like("vine|climbing|creeping")) {
+  if (type_like("palm")) {
+    return("Palm")
+  }
+  if (type_like("grass|rush|sedge|reed")) {
+    return("Grass")
+  }
+  if (type_like("carnivorous")) {
+    return("Carnivorous")
+  }
+  if (type_like("vine|climb|creep")) {
     return("Vine")
   }
   if (type_like("weed|invasive")) {
     return("Weed")
   }
-  if (type_like("produce")) {
+  if (type_like("produce|vegetable")) {
     return("Produce")
   }
   if (type_like("bulb")) {
@@ -54,12 +88,18 @@ simplify_plant_type <- function(plant_type) {
   if (type_like("grain")) {
     return("Grain")
   }
+  if(type_like("fern")) {
+    return("Fern")
+  }
+
+  message(paste0("No icon for plant type '", plant_type, "'"))
+
   plant_type
 }
 
 hardiness_info <- function(hardiness) {
-  if (is.null(hardiness$min) && is.null(hardiness$max)) {
-    return(NULL)
+  if (rlang::is_empty(hardiness$min) && rlang::is_empty(hardiness$max)) {
+    return(HTML("<span><b>Hardiness range unavailable</b></span>"))
   }
   if (hardiness$min == hardiness$max) {
     HTML(glue::glue("<span><b>Hardiness zone:</b> {hardiness$min}</span>"))
@@ -71,14 +111,23 @@ hardiness_info <- function(hardiness) {
 # Clean up messy sunlight entries
 parse_sunlight <- function(sunlight) {
   sunlight <- sunlight |>
+    #unlist() |>
+    #strsplit("(?<=.)(?=[[:upper:]])", perl = TRUE) |>
+    #unlist() |>
     tolower() |>
     strsplit("/") |>
     purrr::list_flatten() |>
     unlist() |>
     trimws()
-  sunlight <- gsub("filtered shade", "part shade", sunlight)
+  sunlight <- gsub("filtered shade", "partial shade", sunlight)
+  sunlight <- gsub("part shade", "partial shade", sunlight)
+  sunlight <- gsub("part sun", "partial sun", sunlight)
   sunlight <- gsub("deep shade", "full shade", sunlight)
-  valid_choices <- c("full shade", "part shade", "part sun", "full sun")
+  valid_choices <- c("full shade", "partial shade", "partial sun", "full sun")
+
+  if (!any(sunlight %in% valid_choices)) {
+    message(paste("Sunlight entry '", sunlight, "' is not valid"))
+  }
 
   # Fill if any choices are missing in the middle
   idx <- which(valid_choices %in% sunlight)
@@ -88,10 +137,10 @@ parse_sunlight <- function(sunlight) {
 get_sunlight_icon <- function(sunlight_entry) {
   switch(
     sunlight_entry,
-    "full shade" = "noun-eclipse-5842793",
-    "part shade" = "noun-eclipse-5819735",
-    "part sun"   = "noun-eclipse-5819699",
-    "full sun"   = "noun-eclipse-5842843"
+    "full shade"    = "noun-eclipse-5842793",
+    "partial shade" = "noun-eclipse-5819735",
+    "partial sun"   = "noun-eclipse-5819699",
+    "full sun"      = "noun-eclipse-5842843"
   )
 }
 
@@ -118,6 +167,11 @@ watering_info <- function(water_needs) {
     "Frequent" = 4,
     0
   )
+
+  if (n_drops == 0) {
+    message(paste("Water needs entry '", water_needs, "' is not valid"))
+  }
+
   water_icon <- paste("<img src=www/noun_icons/noun-water-344559.svg",
                       "height='13' width='13'>")
   HTML(paste0("<span style='padding-bottom: 10px;'><strong>Water needs: </strong>",
@@ -127,25 +181,22 @@ watering_info <- function(water_needs) {
 mix_colors <- function(cols) colorRampPalette(c(cols[[1]], cols[[2]]))(3)[2]
 
 #TODO: Could parse "light/pale/dark" separately
-get_flower_color <- function(color_vect) {
-  color_vect <- color_vect |>
-    tolower() |>
-    gsub("showy,|not showy,|light ", "", x = _) |>
-    strsplit(", | or ")
-  matches <- purrr::map(names(flower_colors), ~ grep(.x, color_vect))
-  if (length(unlist(matches)) == 0) {
-    warning(paste("Color not found for", color_vect))
-    return(list(hex_color = NULL))
-  }
-  match_idx <- which(matches %in% min(unlist(matches)))
-  if (length(match_idx) > 1) {
-    if (length(match_idx) > 2) {
-      message(paste0("More than two colors found for '", color_vect, "'. Only ",
-                     "the first two colors will be used."))
+get_flower_color <- function(color_record, to_hex = TRUE) {
+  matches <- names(flower_colors) |>
+    purrr::map_vec(~ regexpr(.x, color_record[[1]], ignore.case = TRUE))
+  if (all(matches == -1)) {
+    if (not_empty(color_record) && color_record[[1]] != "Non-flowering") {
+      message(paste("Color not found for", color_record))
     }
-    return(list(hex_color = mix_colors(flower_colors[match_idx[1:2]])))
+    return(NULL)
   }
-  list(hex_color = flower_colors[[match_idx]])
+  idx <- which(matches == min(matches[matches != -1]))
+  dominant_color <- names(flower_colors)[idx]
+  if (to_hex) {
+    list(hex_color = flower_colors[[dominant_color]])
+  } else {
+    dominant_color
+  }
 }
 
 make_color_row <- function(plant_record) {
@@ -161,7 +212,22 @@ arrange_by_color <- function(df) {
   #colors[order(colMeans(col2rgb(colors)[c("red", "blue"), ]))]
 }
 
-get_care_guide_ids <- function(your_border) {
-  api_ids <- as.numeric(gsub("plant_", "", names(your_border)))
-  sort(api_ids[api_ids <= 3000])
+# Check that all functions used for a plant entry will not fail
+
+no_error <- function(fct, id, ...) {
+  rtrn <- tryCatch(fct(...), error = identity)
+  if (inherits(rtrn, "error")) {
+    message(paste0("Function '", substitute(fct), "' failed for plant ", id))
+  }
+  !inherits(rtrn, "error")
+}
+
+valid_plant_entry <- function(details_record) {
+  functions_work <- c(
+    no_error(simplify_plant_type, details_record$id, details_record$type),
+    no_error(hardiness_info, details_record$id, details_record$hardiness),
+    no_error(sunlight_info, details_record$id, details_record$sunlight),
+    no_error(watering_info, details_record$id, details_record$watering)
+  )
+  all(functions_work)
 }
