@@ -12,6 +12,7 @@ pop_id <- function(list, id) { list[[id]] <- NULL; list }
 
 to_api_ids <- function(plant_id) as.numeric(gsub("plant_", "", plant_id))
 
+# Because sample's return is unexpected for length 1 vectors
 sample2 <- function(x) {
   if (length(x) == 1) {
     return(x)
@@ -30,7 +31,7 @@ set_plant_names <- function(plant_data) {
 
 # API responses are better behaved when hardiness is a range
 hardiness_range <- function(zone) {
-  zone <- as.numeric(zone)
+  zone <- as.numeric(substr(zone, 5, nchar(zone)))
   paste0(max(zone - 3, 2), "-", min(zone + 1, 13))
 }
 
@@ -145,10 +146,20 @@ get_sunlight_icon <- function(sunlight_entry) {
 }
 
 sunlight_info <- function(sunlight) {
+
   if (is.null(sunlight)) {
     return(NULL)
   }
-  icon_files <- purrr::map(parse_sunlight(sunlight), get_sunlight_icon)
+
+  if (identical(tolower(sunlight), "shade")) {
+    sunlight <- "full shade"
+  } else if (identical(tolower(sunlight), "sun")) {
+    sunlight <- "full sun"
+  } else {
+    sunlight <- parse_sunlight(sunlight)
+  }
+
+  icon_files <- purrr::map(sunlight, get_sunlight_icon)
   sun_icons <- paste0("<img src=www/noun_icons/", icon_files,
                       ".svg height='13' width='13'>", collapse = "")
   HTML(paste0("<span><strong>Sunlight needs: </strong>", sun_icons, "</span>"))
@@ -230,4 +241,135 @@ valid_plant_entry <- function(details_record) {
     no_error(watering_info, details_record$id, details_record$watering)
   )
   all(functions_work)
+}
+
+bs_modal <- function(id, type, title, body_content) {
+  title_icon <- switch(type,
+                       error = "triangle-exclamation",
+                       warning = "circle-exclamation")
+  tags$div(
+    id = id,
+    class = "modal fade",
+    `data-bs-backdrop` = "static",
+    `data-bs-keyboard` = "false",
+    tabindex = "-1",
+    `aria-labelledby` = paste0(id, "_label"),
+    `aria-hidden` = "true",
+    tags$div(
+      class = "modal-dialog",
+      tags$div(
+        class = "modal-content",
+        tags$div(
+          class = "modal-header",
+          h5(
+            id = paste0(id, "_label"),
+            class = "modal-title",
+            tags$span(icon(title_icon), title)
+          ),
+          tags$button(
+            type = "button",
+            class = "btn-close",
+            `data-bs-dismiss` = "modal",
+            `aria-label` = "Close"
+          )
+        ),
+        tags$div(
+          class = "modal-body",
+          body_content
+        ),
+        tags$div(
+          class = "modal-footer",
+          tags$button(
+            type = "button",
+            class = "btn btn-hbs",
+            `data-bs-dismiss` = "modal",
+            "Got it"
+          )
+        )
+      )
+    )
+  )
+}
+
+show_api_error_modal <- function() {
+  shiny::showModal(
+    shiny::modalDialog(
+      size = "m",
+      title = tags$span(icon("triangle-exclamation"), "API error"),
+      bslib::card_body(
+        paste(
+          "There was an error connecting to the Perenual API. This could be",
+          "because the API is down or because it received too many requests.",
+          "Please try again later."
+        )
+      ),
+      easyClose = TRUE
+    )
+  )
+}
+
+show_no_results_modal <- function() {
+  shiny::showModal(
+    shiny::modalDialog(
+      size = "m",
+      title = tags$span(icon("circle-exclamation"), "No results"),
+      bslib::card_body(
+        "Your filters did not return any results. Please expand your search."
+      ),
+      easyClose = TRUE
+    )
+  )
+}
+
+filters_applied <- function() {
+  shinyjs::removeClass(id = "apply_filters_text", "apply-filters-busy")
+  shinyjs::removeClass(id = "apply_filters", "btn-spinner")
+  shinyjs::addClass(id = "apply_filters_text", "filters-applied")
+}
+
+enable_filters <- function() {
+  shinyjs::enable("apply_filters")
+  shinyjs::removeClass(id = "apply_filters_text", "filters-applied")
+  shinyjs::removeClass(id = "apply_filters_text", "no-filters")
+  shinyjs::addClass(id = "apply_filters_text", "apply-filters-ready")
+  shinyjs::addClass(id = "apply_filters", "btn-spinner")
+}
+
+no_filters <- function() {
+  shinyjs::removeClass(id = "apply_filters", "btn-spinner")
+  shinyjs::removeClass(id = "apply_filters_text", "apply-filters-ready")
+  shinyjs::removeClass(id = "apply_filters_text", "filters-applied")
+  shinyjs::addClass(id = "apply_filters_text", "no-filters")
+  shinyjs::disable("apply_filters")
+}
+
+update_plant_list <- function(ns, details, your_border) {
+  if (length(details) > 0) {
+    insert_plant_cards(ns, details)
+    purrr::iwalk(details, ~ plant_card_server(.y, .x, your_border))
+  }
+}
+
+update_results_ui <- function(rem_pages, rem_ids, any_results = FALSE) {
+  shinyjs::show("show_more")
+  shinyjs::removeClass(id = "show_more", "btn-spinner")
+  shinyjs::removeClass(id = "show_more_text", "show-more-busy")
+  if (length(rem_pages) == 0 && length(rem_ids) == 0) {
+    if (!any_results) {
+      show_no_results_modal()
+      shinyjs::hide("show_more")
+    } else {
+      shinyjs::removeClass("show_more_text", "show-more-ready")
+      shinyjs::addClass("show_more_text", "no-more")
+      shinyjs::disable("show_more")
+    }
+  } else {
+    shinyjs::enable("show_more")
+    shinyjs::removeClass("show_more_text", "no-more")
+    shinyjs::addClass("show_more_text", "show-more-ready")
+    if (!any_results) {
+      print("NOTHING FOUND YET")
+      #TODO: Add 'nothing found yet' click show more to try again
+    }
+  }
 }

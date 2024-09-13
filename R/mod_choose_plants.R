@@ -37,13 +37,12 @@ make_filters <- function(id, ns) {
       label = tags$span(
         paste0(stringr::str_to_sentence(gsub("_", " ", id)), ":")
       ),
-      choices = filter_choices[[id]],
-      selected = filter_choices[[id]],
+      choices = filter_selects[[id]],
       multiple = TRUE,
       options = if (id == "flower_color") list(
         `actions-box` = TRUE,
-        `select-all-text` = "Include all",
-        `deselect-all-text` = "Remove all"
+        `select-all-text` = "Select all",
+        `deselect-all-text` = "Deselect all"
       )
     )
   )
@@ -127,15 +126,21 @@ choose_plants_UI <- function(id) {
           tags$div(
             class = "offcanvas-body d-flex justify-content-center",
             tags$div(
-              purrr::map(names(filter_choices), ~ make_filters(.x, ns)),
+              purrr::map(names(filter_selects), ~ make_filters(.x, ns)),
+              purrr::imap(
+                filter_checkboxes,
+                ~ tags$div(class = "mt-3", checkboxInput(ns(.y), .x))
+              ),
               tags$div(
                 class = "d-flex mt-4",
-                actionButton(
-                  class = "btn-primary btn-spinner btn-block w-100 h-100",
-                  inputId = ns("apply_filters"),
-                  label = tags$span(
-                    id = ns("apply_filters_text"),
-                    class = "apply-filters-ready"
+                shinyjs::disabled(
+                  actionButton(
+                    class = "btn-primary btn-block w-100 h-100",
+                    inputId = ns("apply_filters"),
+                    label = tags$span(
+                      id = ns("apply_filters_text"),
+                      class = "no-filters"
+                    )
                   )
                 )
               )
@@ -147,13 +152,15 @@ choose_plants_UI <- function(id) {
         class = "d-flex flex-wrap",
         tags$div(
           id = ns("show_more_div"),
-          class = "d-flex flex-grow-1 justify-content-center align-items-center",
-          actionButton(
-            class = "btn-primary btn-spinner",# btn-block w-100 h-100",
-            inputId = ns("show_more"),
-            label = tags$span(
-              id = ns("show_more_text"),
-              class = "show-more-ready"
+          class = "d-flex flex-grow-1 justify-content-center align-items-center mb-4",
+          shinyjs::hidden(
+            actionButton(
+              class = "btn-discreet-lg",
+              inputId = ns("show_more"),
+              label = tags$span(
+                id = ns("show_more_text"),
+                class = "show-more-ready"
+              )
             )
           )
         )
@@ -163,7 +170,7 @@ choose_plants_UI <- function(id) {
 }
 
 #' @import rlang
-choose_plants_server <- function(id, zone, city = NULL) {
+choose_plants_server <- function(id, zone, your_border, city = NULL) {
   moduleServer(
     id,
     function(input, output, session) {
@@ -188,6 +195,8 @@ choose_plants_server <- function(id, zone, city = NULL) {
 
       insert_plant_cards(ns, default_details$data)
 
+      shinyjs::show("show_more")
+
       #TODO: Make
       plant_details <- reactiveVal(default_details$data)
 
@@ -201,22 +210,57 @@ choose_plants_server <- function(id, zone, city = NULL) {
       )
 
       observeEvent(input$show_more, {
+
+        status <- "OK"
+        new_details <- NULL
+        rem_pages <- api_info$rem_pages
+        rem_ids <- api_info$rem_ids
+
+        shinyjs::addClass(id = "show_more", "btn-spinner")
         shinyjs::removeClass(id = "show_more_text", "show-more-ready")
         shinyjs::addClass(id = "show_more_text", "show-more-busy")
         shinyjs::disable("show_more")
 
-        if (length(api_info$rem_ids) > 0) {
+        # If any remaining ids from the last page batch, start with those
+        if (length(rem_ids) > 0) {
           details_batch <- query_details_batch(rem_ids)
-        } else {
-          id_list <- query_addl_pages(
-
-          )
+          status <- details_batch$status
+          new_details <- details_batch$data
+          rem_ids <- details_batch$rem_ids
         }
 
+        # If no ids from last page batch or still no results after using the
+        # remaining ids, get more pages
+        if (status == "OK" && length(new_details) == 0) {
+          more_plants <- query_more_plants(
+            url_args = api_info$url_args,
+            addl_filters = api_info$addl_filters,
+            rem_pages = api_info$rem_pages
+          )
+          status <- more_plants$status
+          new_details <- more_plants$details
+          rem_pages <- more_plants$rem_pages
+          rem_ids <- more_plants$rem_ids
+        }
 
-        shinyjs::enable("show_more")
-        shinyjs::removeClass(id = "show_more_text", "show-more-busy")
-        shinyjs::addClass(id = "show_more_text", "show-more-ready")
+        if (length(new_details) > 0) {
+          update_plant_list(ns, new_details, your_border)
+          plant_details(c(plant_details(), new_details))
+        } else if (status == "api_error") {
+          show_api_error_modal()
+        }
+
+        api_info$rem_pages <- rem_pages
+        api_info$rem_ids <- rem_ids
+
+        # shinyjs::enable("show_more")
+        # shinyjs::removeClass(id = "show_more", "btn-spinner")
+        # shinyjs::removeClass(id = "show_more_text", "show-more-busy")
+        # shinyjs::addClass(id = "show_more_text", "show-more-ready")
+
+        enable_filters()
+        update_results_ui(rem_pages, rem_ids, TRUE)
+
       })
 
       search_type <- reactiveVal("by_common_name")
@@ -252,13 +296,40 @@ choose_plants_server <- function(id, zone, city = NULL) {
         shinyjs::addClass(id = "search_text", "search-busy")
         shinyjs::disable("search")
         details <- query_details_batch(search_ids())
+
         shinyjs::enable("search")
         shinyjs::removeClass(id = "search_text", "search-busy")
         shinyjs::addClass(id = "search_text", "search-ready")
-        purrr::imap(details$data, ~ make_plant_stub(ns, .y, .x))
+
+        if (details$status == "api_error") {
+          api_info$error <- TRUE
+          search_ids(NULL)
+          show_api_error_modal()
+        } else {
+          purrr::imap(details$data, ~ make_plant_stub(ns, .y, .x))
+        }
+
       })
 
+      filters <- reactive({
+        filter_selects |>
+          purrr::imap(~ if (identical(input[[.y]], unname(.x))) { NULL }
+                      else { input[[.y]] }) |>
+          purrr::compact()
+      })
+
+      observeEvent(filters(), {
+        if (length(filters()) > 0) {
+          enable_filters()
+        } else {
+          no_filters()
+        }
+      }, ignoreInit = TRUE)
+
       observeEvent(input$apply_filters, {
+
+        status <- "OK"
+        new_details <- rem_ids <- rem_pages <- NULL
 
         shinyjs::removeClass(id = "apply_filters_text", "apply-filters-ready")
         shinyjs::addClass(id = "apply_filters_text", "apply-filters-busy")
@@ -270,128 +341,89 @@ choose_plants_server <- function(id, zone, city = NULL) {
           immediate = TRUE
         )
 
-        url_args <- make_url_args(input, names(filter_choices))
+        url_args <- make_url_args(input, names(filter_selects))
+        api_info$url_args <- url_args
 
         #TODO: Change to use inputs
         #TODO: Save to reactivevalues obj
         addl_filters <- list(filter_no_img = TRUE, filter_trees = TRUE)
 
         if (isTruthy(input$flower_color)) {
-          addl_filters <-
-            c(addl_filters, list(flower_color = input$flower_color))
+          addl_filters <- addl_filters |>
+            c(list(flower_color = input$flower_color))
         }
 
-        page1 <- query_list_safe(url_args, addl_filters)
+        api_info$addl_filters <- addl_filters
 
-        if (identical(page1, "api_error")) {
-          print("API ERROR")
-          api_info$error <- TRUE
-        } else {
-          page1_ids <- purrr::map_vec(page1$data, ~ .x$id)
+        # Query the first page separately to get the results page_count
+        page1_resp <- do.call(query_species_list, url_args) |>
+          httr2::req_perform()
 
-          # Start by querying four more pages to mix with the first
-          id_list <- query_addl_pages(
+        if (page1_resp$status_code != 200) {
+          status <- "api_error"
+        }
+
+        if (status == "OK") {
+
+          page1 <- process_page_resp(page1_resp, addl_filters)
+
+          #rem_pages <- c(45, 3, 75)#2:5
+          page_batch <- query_page_batch(
             url_args = url_args,
             addl_filters = addl_filters,
-            rem_pages = setdiff(sample(1:page1$page_count), 1)
+            rem_pages = if (page1$page_count == 1) NULL else 2:page1$page_count
           )
-          print(names(id_list$imgs))
-          rem_pages <- id_list$rem_pages
 
-          if (length(id_list$ids) == 0) {
-            details <- NULL
-            successful_ids <- NULL
-            rem_ids <- NULL
-            imgs <- NULL
-          } else {
-            #TODO: test if this breaks after page successful
-            first_batch <- query_details_batch(sample2(id_list$ids))
-            details <- first_batch$data
+          status <- page_batch$status
+          rem_pages <- page_batch$rem_pages
 
-            if (any(purrr::map_vec(first_batch$data, ~ is.null(.x$default_image$regular_url)))) {
-              browser()
-            }
+          if (status == "OK") {
+            # TODO: Do we even need data? / maybe just keep images
+            combined_pages <- c(page1$data, page_batch$data)
+            combined_ids <- names(page1$data) |>
+              to_api_ids() |>
+              c(page_batch$ok_ids) |>
+              sample2()
+            details_batch <- query_details_batch(sample2(combined_ids))
+            status <- details_batch$status
+            new_details <- details_batch$data
+            rem_ids <- details_batch$rem_ids
 
-            successful_ids <- to_api_ids(names(first_batch$data))
-            rem_ids <- first_batch$rem_ids
-            imgs <- id_list$imgs
+            print(paste("Length new details:", length(new_details)))
 
-          }
-
-          if (identical(id_list, "api_error")) {
-            print("API ERROR")
-            api_info$error <- TRUE
-          } else {
-            # Query up to 7 more pages looking for filter matches
-            attempts <- 1
-            while (all(attempts <= 15, length(successful_ids) < 5,
-                       length(rem_pages) != 0)) {
-
-              # Get another page of results and apply filters
-              id_list <- query_addl_pages(
+            if (status == "OK" && length(new_details) == 0) {
+              more_plants <- query_more_plants(
                 url_args = url_args,
                 addl_filters = addl_filters,
-                rem_pages = rem_pages,
-                pages_to_add = 1
+                rem_pages = page_batch$rem_pages
               )
 
-              if (identical(id_list, "api_error")) {
-                print("API ERROR")
-                api_info$error <- TRUE
-                break
-              }
+              status <- more_plants$status
+              new_details <- more_plants$details
+              rem_pages <- more_plants$rem_pages
+              rem_ids <- more_plants$rem_ids
 
-              rem_pages <- id_list$rem_pages
-
-              if (length(id_list$ids) > 0) {
-                print(paste("Images:", paste(names(id_list$imgs), collapse = "")))
-                print(paste("Successful ids:", paste(id_list$ids, collapse = "")))
-                imgs <- c(imgs, id_list$imgs)
-                details_batch <- query_details_batch(id_list$ids)
-                if (identical(details_batch, "api_error")) {
-                  print("API ERROR")
-                  api_info$error <- TRUE
-                  break
-                }
-
-                if (length(details_batch$data) > 0) {
-                  details <- c(details, details_batch$data)
-                  print(paste("Length of details from while loop:", length(details)))
-                  successful_ids <-
-                    c(successful_ids, to_api_ids(names(details_batch$data)))
-                  rem_ids <- details_batch$rem_ids
-                  if (any(purrr::map_vec(details_batch$data,
-                                         ~ is.null(.x$default_image$regular_url)))) {
-                    browser()
-                  }
-                }
-              }
-
-              attempts <- attempts + 1
             }
-
-            if (!identical(id_list, "api_error")) {
-              print(paste("Length of details:", length(details)))
-              print(names(details))
-              cat(crayon::green("Updating species list\n"))
-              api_info$rem_pages <- id_list$rem_pages
-              api_info$rem_ids <- rem_ids
-              # TODO: Shuffle
-              insert_plant_cards(ns, details)
-              purrr::iwalk(details, ~ plant_card_server(.y, .x, your_border))
-            }
-
           }
         }
 
-        shinyjs::enable("apply_filters")
-        shinyjs::removeClass(id = "apply_filters_text", "apply-filters-busy")
-        shinyjs::addClass(id = "apply_filters_text", "apply-filters-ready")
+        # Only show error if no results could be recovered
+        if (length(new_details) > 0) {
+          update_plant_list(ns, new_details, your_border)
+          plant_details(c(plant_details(), new_details))
+          filters_applied()
+        } else if (status == "api_error") {
+          show_api_error_modal()
+        }
+
+        api_info$rem_pages <- rem_pages
+        api_info$rem_ids <- rem_ids
+
+        update_results_ui(rem_pages, rem_ids, length(new_details) > 0)
 
       })
 
       border_ids <- reactiveVal()
-      your_border <- reactiveVal()
 
       default_details$data |>
         purrr::iwalk(~ plant_card_server(.y, .x, your_border))

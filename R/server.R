@@ -6,9 +6,11 @@ server <- function(input, output, session) {
   # Allow user to navigate directly to their zone page and skip the modal
   zone_ID <- gsub("#", "", isolate(session$clientData$url_hash))
   #TODO: Remove later
-  zone_ID <- "zone9"
+  #zone_ID <- "zone9"
+  your_border <- reactiveVal()
+
   if (zone_ID %in% paste0("zone", 3:11)) {
-    your_border <- choose_plants_server("choose_plants", zone_ID)
+    choose_plants_server("choose_plants", zone_ID, your_border)
     at_a_glance_server("at_a_glance", your_border)
     care_guide_server("care_guide", your_border)
   } else {
@@ -21,13 +23,12 @@ server <- function(input, output, session) {
         bslib::card_body(
           shiny::HTML(
             paste(
-              "<span><strong>Borders</strong> is a tool to help you design a ",
-              "garden border for your home. To get started, enter your ZIP Code",
-              "to find your USDA hardiness zone and click <strong>Go</strong>.",
-              "If you live outside the US and know your hardiness zone, you",
-              "can enter it directly instead.</span><span>Plant listings will",
-              "also include species suitable for similar hardiness zones to",
-              "yours.</span>"
+              "<span>Borders is a tool to help you choose plants for a garden ",
+              "border. To get started, enter your ZIP Code to find your USDA",
+              "hardiness zone. If you live outside the US and know your",
+              "hardiness zone, you can enter it directly instead.</span>",
+              "<span>Plant listings will also include species suitable for",
+              "similar hardiness zones to yours.</span>"
             )
           ),
           tags$div(
@@ -49,17 +50,16 @@ server <- function(input, output, session) {
               )
             )
           ),
-          shinyWidgets::radioGroupButtons(
-            inputId = "zip_or_zone",
-            status = "light",
-            justified = TRUE,
-            choices = list("Enter zipcode" = "zip",
-                           "Select hardiness zone" = "zone"),
-            selected = "zip",
-            checkIcon = list(yes = icon("check"))
+          tags$div(
+            class = "d-flex justify-content-start",
+            actionButton(
+              inputId = "zip_or_zone",
+              label = icon("chevron-right"),
+              class = "btn-discreet-md search-zone"
+            )
           )
         ),
-        footer = actionButton("go", "Go")
+        footer = actionButton("go", "Let's go", style = "width: 25%;")
       )
     )
 
@@ -72,22 +72,28 @@ server <- function(input, output, session) {
     )
 
     observeEvent(input$zip_or_zone, {
-      if (input$zip_or_zone == "zip") {
-        shinyjs::show("zip")
-        shinyjs::show("location_text")
-        shinyjs::hide("zone")
-      } else {
+      if (input$zip_or_zone %% 2 == 1) {
+        shinyjs::removeClass("zip_or_zone", "search-zone")
+        shinyjs::addClass("zip_or_zone", "search-zip")
         shinyjs::show("zone")
         shinyjs::hide("zip")
         shinyjs::hide("location_text")
+      } else {
+        shinyjs::removeClass("zip_or_zone", "search-zip")
+        shinyjs::addClass("zip_or_zone", "search-zone")
+        shinyjs::show("zip")
+        shinyjs::show("location_text")
+        shinyjs::hide("zone")
       }
     })
 
     observe({
       req(input$zip_or_zone)
       if (input$zip_or_zone == "zip" && input$zip %||% "" == "") {
+        zip_iv$enable()
         shinyjs::disable("go")
       } else {
+        zip_iv$disable()
         shinyjs::enable("go")
       }
     })
@@ -102,17 +108,17 @@ server <- function(input, output, session) {
 
     zip_iv <- shinyvalidate::InputValidator$new()
     zip_iv$add_rule("zip", shinyvalidate::sv_required())
-    zip_iv$enable()
 
     observeEvent(input$go, {
-      if (input$zip_or_zone == "zip") {
+      req(zip_iv$is_valid())
+      if (input$zip_or_zone %% 2 == 0) {
         zone <- zone_by_zipcode$zone[zone_by_zipcode$zip == input$zip]
       } else {
         zone <- input$zone
       }
       zone_ID <- paste0("zone", zone)
       shinyjs::runjs(paste0("window.location.hash = '", zone_ID, "';"))
-      your_border <- choose_plants_server("choose_plants", paste0("zone", zone))
+      choose_plants_server("choose_plants", paste0("zone", zone), your_border)
       at_a_glance_server("at_a_glance", your_border)
       care_guide_server("care_guide", your_border)
       shiny::removeModal()

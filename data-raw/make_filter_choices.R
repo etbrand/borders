@@ -8,14 +8,18 @@ label <- function(choices) {
     setNames(choices, nm = _)
 }
 
-filter_choices <- list(
+filter_selects <- list(
   sunlight = label(c("full_shade", "part_shade", "part_sun", "full_sun")),
   cycle = label(c("perennial", "annual", "biennial", "biannual")),
   watering = label(c("frequent", "average", "minimum", "none")),
-  edible = c(Edible = 1, Nonedible = 0),
-  poisonous = c(Poisonous = 1, "Non-poisonous" = 0),
   flower_color = label(c("blue", "brown", "green", "orange", "pink", "purple",
                          "red", "white", "yellow", "no_color"))
 )
 
-usethis::use_data(filter_choices, overwrite = TRUE)
+filter_checkboxes <- list(
+  edible_only = "Edible plants only",
+  nonpoisonous_only = "Nonpoisonous plants only",
+  include_trees = "Include trees"
+)
+
+usethis::use_data(filter_selects, filter_checkboxes, overwrite = TRUE)
