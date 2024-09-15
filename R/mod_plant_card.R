@@ -1,39 +1,16 @@
-plant_card_header <- function(plant_type, common_name) {
+plant_card_UI <- function(id, details_record, in_border = FALSE,
+                          simplified = FALSE) {
 
-  header_icon <- switch(
-    simplify_plant_type(plant_type),
-    "Bulb" = "noun-onion-4623459",
-    "Cactus" = "noun-cactus-2590999",
-    "Carnivorous" = "noun-venus-flytrap-27589",
-    "Conifer" = "noun-pine-5973913",
-    "Fern" = "noun-fern-4273283",
-    "Flower" = "noun-flower-7088847",
-    "Fruit" = "noun-fruit-6461708",
-    "Grain" = "noun-wheat-124955",
-    "Grass" = "noun-grass-6990187",
-    "Herb" = "noun-herb-6363034",
-    "Palm" = "noun-palm-5949874",
-    "Produce" = "noun-vegetable-7110902",
-    "Shrub" = "noun-shrub-4416049",
-    "Tree" = "noun-tree-7108880",
-    "Vine" = "noun-vine-2247901",
-    "noun-plant-5018755"
-  )
-
-  bslib::card_header(
-    class = "plant-card-header",
-    tags$span(
-      tags$img(src = glue::glue("www/noun_icons/{header_icon}.svg"),
-               height = 20, width = 20),
-      stringr::str_to_title(common_name)
-    )
-  )
-
-}
-
-plant_card_UI <- function(id, details_record, simplified = FALSE) {
   ns <- shiny::NS(id)
+
   #TODO: Check if this looks ok in guide
+  # error_img <- "www/noun_icons/noun-no-image-3581362.svg"
+  if (not_null(details_record$default_image$regular_url)) {
+    img_path <- details_record$default_image$regular_url
+  } else {
+    img_path <- "www/noun_icons/noun-no-image-3581362.svg"
+  }
+
   tags$div(
     class = if (!simplified) "flex-column col-lg-3 col-md-4 col-sm-6",
     bslib::card(
@@ -46,8 +23,9 @@ plant_card_UI <- function(id, details_record, simplified = FALSE) {
         )
       },
       bslib::card_image(
-        file = details_record$default_image$regular_url,
-        alt = details_record$common_name
+        file = img_path,
+        alt = details_record$common_name,
+        onerror = img_on_error
       ),
       bslib::card_body(
         class = "plant-card-body",
@@ -61,37 +39,39 @@ plant_card_UI <- function(id, details_record, simplified = FALSE) {
             watering_info(details_record$watering),
             tags$div(
               class = "d-flex justify-content-end",
-              shinyjs::hidden(
-                tags$div(
-                  id = ns("checked"),
-                  icon("check")
+              tags$button(
+                id = ns("card_update"),
+                class = if (in_border) "btn btn-discreet-md btn-remove-plant"
+                else "btn btn-discreet-md btn-add-plant",
+                tags$span(
+                  id = ns("card_update_text"),
+                  class =
+                    if (in_border) "remove-plant-text" else "add-plant-text"
                 )
               )
             )
           )
         }
-      ),
-      onclick = if (!simplified) paste0("toggleColor('", ns("card"), "');")
+      )
     )
   )
 }
 
-plant_card_server <- function(id, species_details, your_border) {
+plant_card_server <- function(id, details_record, your_border, card_ids,
+                              search_ids) {
   moduleServer(
     id,
     function(input, output, session) {
-
-      add_or_remove <- function(id, your_border) {
-        if (id %in% names(your_border())) {
-          your_border(pop_id(your_border(), id))
-        } else {
-          your_border(c(your_border(), rlang::list2(!!id := species_details)))
-        }
-        shinyjs::toggle("checked")
-      }
-
-      shinyjs::onclick("card", add_or_remove(id, your_border))
-
+      shinyjs::onclick(
+        id = "card_update",
+        expr = update_border(
+          id = id,
+          details_record = details_record,
+          your_border = your_border,
+          card_ids = card_ids,
+          search_ids = search_ids
+        )
+      )
     }
   )
 }

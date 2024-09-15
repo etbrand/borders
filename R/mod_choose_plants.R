@@ -1,53 +1,3 @@
-make_plant_stub <- function(ns, plant_id, details_record) {
-  tags$div(
-    id = paste0(ns(plant_id), "_stub"),
-    class = "border-stub d-flex",
-    tags$div(
-      class = "align-self-center me-2",
-      tags$img(src = details_record$default_image$thumbnail,
-               height = 35, width = 35)
-    ),
-    tags$div(
-      class = "me-1",
-      tags$div(stringr::str_to_title(details_record$common_name)),
-      tags$div(tags$em(details_record$scientific_name))
-    ),
-    tags$button(
-      class = paste("add-from-search btn btn-sm me-1 btn-outline-primary",
-                    "align-self-center ms-auto"),
-      id = ns(paste0("add_", plant_id, "_from_search")),
-      shiny::icon("plus")
-    )
-  )
-}
-
-insert_plant_cards <- function(ns, plants) {
-  insertUI(
-    paste0("#", ns("show_more_div")),
-    where = "beforeBegin",
-    ui = tagList(!!!unname(purrr::imap(plants, ~ plant_card_UI(ns(.y), .x))))
-  )
-}
-
-make_filters <- function(id, ns) {
-  tags$div(
-    class = "mb-0",
-    shinyWidgets::pickerInput(
-      inputId = ns(id),
-      label = tags$span(
-        paste0(stringr::str_to_sentence(gsub("_", " ", id)), ":")
-      ),
-      choices = filter_selects[[id]],
-      multiple = TRUE,
-      options = if (id == "flower_color") list(
-        `actions-box` = TRUE,
-        `select-all-text` = "Select all",
-        `deselect-all-text` = "Deselect all"
-      )
-    )
-  )
-}
-
 choose_plants_UI <- function(id) {
   ns <- NS(id)
 
@@ -84,6 +34,7 @@ choose_plants_UI <- function(id) {
             )
           ),
           tags$div(
+            id = ns("search_div"),
             class = "d-flex mb-4",
             actionButton(
               class = "btn-primary btn-spinner btn-block w-100 h-100",
@@ -93,8 +44,8 @@ choose_plants_UI <- function(id) {
                 class = "search-ready"
               )
             )
-          ),
-          uiOutput(ns("search_results"))
+          )#,
+          #uiOutput(ns("search_results"))
         ),
         tags$button(
           class = "btn btn-primary",
@@ -177,6 +128,13 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
       ns <- NS(id)
 
+
+      default_details <- default_zone_data[[zone]]$details
+      insert_plant_cards(ns, default_details$data, your_border)
+
+      card_ids <- reactiveVal(names(default_details$data))
+      search_ids <- reactiveVal()
+
       updateSelectizeInput(
         session = session,
         inputId = "search_common_name",
@@ -190,10 +148,6 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         choices = search_list[[zone]]$by_scientific_name$scientific_name,
         server = TRUE
       )
-
-      default_details <- default_zone_data[[zone]]$details
-
-      insert_plant_cards(ns, default_details$data)
 
       shinyjs::show("show_more")
 
@@ -244,7 +198,14 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         }
 
         if (length(new_details) > 0) {
-          update_plant_list(ns, new_details, your_border)
+          card_ids(c(card_ids(), names(new_details)))
+          update_plant_list(
+            ns = ns,
+            details = new_details,
+            your_border = your_border,
+            card_ids = card_ids,
+            search_ids = search_ids
+          )
           plant_details(c(plant_details(), new_details))
         } else if (status == "api_error") {
           show_api_error_modal()
@@ -253,13 +214,8 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         api_info$rem_pages <- rem_pages
         api_info$rem_ids <- rem_ids
 
-        # shinyjs::enable("show_more")
-        # shinyjs::removeClass(id = "show_more", "btn-spinner")
-        # shinyjs::removeClass(id = "show_more_text", "show-more-busy")
-        # shinyjs::addClass(id = "show_more_text", "show-more-ready")
-
         enable_filters()
-        update_results_ui(rem_pages, rem_ids, TRUE)
+        update_show_more(rem_pages, rem_ids, TRUE)
 
       })
 
@@ -280,22 +236,35 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         }
       })
 
-      search_ids <- reactiveVal()
+      current_search_ids <- NULL
+
       observeEvent(input$search, {
+        print("SEARCH FIRED")
         plant_name <- input[[sub("by_", "search_", search_type())]]
         col_name <- sub("by_", "", search_type())
         new_search_ids <- search_list[[zone]][[search_type()]] |>
           dplyr::filter(!!rlang::sym(col_name) == plant_name) |>
           dplyr::pull(id)
-        search_ids(new_search_ids)
+        #if (!identical(new_search_ids, current_search_ids)) {
+        #  current_search_ids <<- new_search_ids
+          search_ids(paste0("plant_", new_search_ids))
+        #}
       })
 
-      output$search_results <- renderUI({
-        req(search_ids())
+      observeEvent(search_ids(), {
+        #req(!identical(search_ids(), current_search_ids))
+        #current_search_ids <<- isolate(search_ids())
         shinyjs::removeClass(id = "search_text", "search-ready")
         shinyjs::addClass(id = "search_text", "search-busy")
         shinyjs::disable("search")
-        details <- query_details_batch(search_ids())
+
+        removeUI(
+          selector = ".border-stub:has([id ^=choose_plants])",
+          multiple = TRUE,
+          immediate = TRUE
+        )
+
+        details <- query_details_batch(to_api_ids(search_ids()))
 
         shinyjs::enable("search")
         shinyjs::removeClass(id = "search_text", "search-busy")
@@ -303,13 +272,63 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
         if (details$status == "api_error") {
           api_info$error <- TRUE
+          print("updated from sr error")
           search_ids(NULL)
           show_api_error_modal()
         } else {
-          purrr::imap(details$data, ~ make_plant_stub(ns, .y, .x))
+          #browser()
+          search_results <- details$data |>
+            purrr::imap(
+              ~ make_plant_stub(
+                id = .y,
+                details_record = .x,
+                your_border = your_border,
+                card_ids = card_ids,
+                search_ids = search_ids,
+                ns = ns
+              )
+            )
+          shiny::insertUI(
+            selector = paste0("#", ns("search_div")),
+            ui = search_results,
+            where = "afterEnd"
+          )
         }
 
       })
+
+      # output$search_results <- renderUI({
+      #   #req(!identical(search_ids(), current_search_ids))
+      #   #current_search_ids <<- isolate(search_ids())
+      #   shinyjs::removeClass(id = "search_text", "search-ready")
+      #   shinyjs::addClass(id = "search_text", "search-busy")
+      #   shinyjs::disable("search")
+      #   details <- query_details_batch(search_ids())
+      #
+      #   shinyjs::enable("search")
+      #   shinyjs::removeClass(id = "search_text", "search-busy")
+      #   shinyjs::addClass(id = "search_text", "search-ready")
+      #
+      #   if (details$status == "api_error") {
+      #     api_info$error <- TRUE
+      #     print("updated from sr error")
+      #     search_ids(NULL)
+      #     show_api_error_modal()
+      #   } else {
+      #     details$data |>
+      #       purrr::imap(
+      #         ~ make_plant_stub(
+      #           id = .y,
+      #           details_record = .x,
+      #           your_border = your_border,
+      #           card_ids = card_ids,
+      #           search_ids = search_ids,
+      #           ns = ns
+      #         )
+      #       )
+      #   }
+      #
+      # })
 
       filters <- reactive({
         filter_selects |>
@@ -409,80 +428,91 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
         # Only show error if no results could be recovered
         if (length(new_details) > 0) {
-          update_plant_list(ns, new_details, your_border)
-          plant_details(c(plant_details(), new_details))
+          card_ids(names(new_details))
+          update_plant_list(
+            ns = ns,
+            details = new_details,
+            your_border = your_border,
+            card_ids = card_ids,
+            search_ids = search_ids
+          )
           filters_applied()
-        } else if (status == "api_error") {
-          show_api_error_modal()
+        } else {
+          card_ids(NULL)
+          if (status == "api_error") {
+            show_api_error_modal()
+          }
         }
+
+        plant_details(new_details)
 
         api_info$rem_pages <- rem_pages
         api_info$rem_ids <- rem_ids
 
-        update_results_ui(rem_pages, rem_ids, length(new_details) > 0)
+        update_show_more(rem_pages, rem_ids, length(new_details) > 0)
 
       })
 
-      border_ids <- reactiveVal()
+      #border_ids <- reactiveVal()
 
       default_details$data |>
-        purrr::iwalk(~ plant_card_server(.y, .x, your_border))
-
-      remove_plant_stub <- function(border_ids, plant) {
-        border_ids(setdiff(border_ids(), plant))
-        shiny::removeUI(selector =  paste0("#", plant, "_stub"))
-        if (rlang::is_empty(border_ids())) {
-          shinyjs::show("empty_border", asis = TRUE)
-        }
-      }
-
-      observeEvent(your_border(), {
-        added_plant <- setdiff(names(your_border()), border_ids())
-        removed_plant <- setdiff(border_ids(), names(your_border()))
-        if (not_empty(added_plant)) {
-          if (rlang::is_empty(border_ids())) {
-            shinyjs::hide("empty_border", asis = TRUE)
-          }
-          plant_info <- your_border()[[added_plant]]
-          shiny::insertUI(
-            selector = "#border_plants",
-            ui = tags$div(
-              id = paste0(added_plant, "_stub"),
-              class =
-                "border-stub d-flex justify-content-between align-items-center",
-              tags$span(
-                tags$img(src = plant_info$default_image$thumbnail,
-                         height = 35, width = 35),
-                stringr::str_to_title(plant_info$common_name
-                )
-              ),
-              tags$div(
-                id = paste0("remove_", added_plant),
-                class = "border-stub-x",
-                shiny::icon("x")
-              )
-            )
+        purrr::iwalk(
+          ~ plant_card_server(
+            id = .y,
+            details_record = .x,
+            your_border = your_border,
+            card_ids = card_ids,
+            search_ids = search_ids
           )
-          shinyjs::onclick(
-            paste0("remove_", added_plant),
-            {
-              remove_plant_stub(border_ids, added_plant)
-              your_border(pop_id(your_border(), added_plant))
-              shinyjs::toggle(paste0(added_plant, "-checked"))
-              shinyjs::runjs(
-                paste0("toggleColor('", ns(added_plant), "-card');")
-              )
-            },
-            asis = TRUE
-          )
-          border_ids(c(border_ids(), added_plant))
-        }
-        if (not_empty(removed_plant)) {
-          remove_plant_stub(border_ids, removed_plant)
-        }
-      }, ignoreNULL = FALSE)
+        )
+
+      # remove_plant_stub <- function(border_ids, plant) {
+      #   border_ids <- setdiff(border_ids, plant)
+      #   shiny::removeUI(selector =  paste0("#", plant, "_stub"))
+      #   if (length(border_ids) == 0) {
+      #     shinyjs::show("empty_border", asis = TRUE)
+      #   }
+      # }
+
+      # observeEvent(your_border(), {
+      #   added_plant <- setdiff(names(your_border()), border_ids())
+      #   removed_plant <- setdiff(border_ids(), names(your_border()))
+      #
+      #
+      #   shiny::removeUI(selector =  paste0("#", plant, "_stub"))
+      #   if (length(border_ids) == 0) {
+      #     shinyjs::show("empty_border", asis = TRUE)
+      #   }
+      #
+      #   if (length(added_plant) == 1) {
+      #     if (length(your_border()) == 1) {
+      #       shinyjs::hide("empty_border", asis = TRUE)
+      #     }
+      #     details_record <- your_border()[[added_plant]]
+      #     shiny::insertUI(
+      #       selector = "#border_plants",
+      #       ui = make_plant_stub(added_plant, details_record, in_border = TRUE)
+      #     )
+      #     # shinyjs::onclick(
+      #     #   paste0("remove_", added_plant),
+      #     #   {
+      #     #     remove_plant_stub(border_ids, added_plant)
+      #     #     your_border(pop_id(your_border(), added_plant))
+      #     #     shinyjs::runjs(
+      #     #       paste0("toggleColor('", ns(added_plant), "-card');")
+      #     #     )
+      #     #   },
+      #     #   asis = TRUE
+      #     # )
+      #     #border_ids(c(border_ids(), added_plant))
+      #   }
+      #   if (not_empty(removed_plant)) {
+      #     remove_plant_stub(border_ids, removed_plant)
+      #   }
+      # }, ignoreNULL = FALSE)
 
       # Return your_border with colors added
+      # TODO: Remove
       reactive({
         if (not_empty(your_border())) {
           your_border() |>

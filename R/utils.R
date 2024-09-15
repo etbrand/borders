@@ -12,6 +12,9 @@ pop_id <- function(list, id) { list[[id]] <- NULL; list }
 
 to_api_ids <- function(plant_id) as.numeric(gsub("plant_", "", plant_id))
 
+img_on_error <-
+  "this.onerror=null; this.src='www/noun_icons/noun-no-image-3581362.svg'"
+
 # Because sample's return is unexpected for length 1 vectors
 sample2 <- function(x) {
   if (length(x) == 1) {
@@ -19,6 +22,9 @@ sample2 <- function(x) {
   }
   sample(x)
 }
+
+addClassAsis <- purrr::partial(shinyjs::addClass, asis = TRUE)
+removeClassAsis <- purrr::partial(shinyjs::removeClass, asis = TRUE)
 
 set_plant_names <- function(plant_data) {
   if (length(plant_data) == 0) {
@@ -35,69 +41,6 @@ hardiness_range <- function(zone) {
   paste0(max(zone - 3, 2), "-", min(zone + 1, 13))
 }
 
-# Plant types are messy; this cleans them up
-simplify_plant_type <- function(plant_type) {
-
-  if (!is.character(plant_type)) {
-    return("Not valid")
-  }
-
-  type_like <- function(pattern) grepl(pattern, plant_type, ignore.case = TRUE)
-
-  if (type_like("flower|violet|begonia|aster|iris")) {
-    return("Flower")
-  }
-  if (type_like("fruit")) {
-    return("Fruit")
-  }
-  if (type_like("shrub")) {
-    return("Shrub")
-  }
-  if (type_like("tree|evergreen")) {
-    return("Tree")
-  }
-  if (type_like("conifer")) {
-    return("Conifer")
-  }
-  if (type_like("palm")) {
-    return("Palm")
-  }
-  if (type_like("grass|rush|sedge|reed")) {
-    return("Grass")
-  }
-  if (type_like("carnivorous")) {
-    return("Carnivorous")
-  }
-  if (type_like("vine|climb|creep")) {
-    return("Vine")
-  }
-  if (type_like("weed|invasive")) {
-    return("Weed")
-  }
-  if (type_like("produce|vegetable")) {
-    return("Produce")
-  }
-  if (type_like("bulb")) {
-    return("Bulb")
-  }
-  if (type_like("herb")) {
-    return("Herb")
-  }
-  if (type_like("cactus")) {
-    return("Cactus")
-  }
-  if (type_like("grain")) {
-    return("Grain")
-  }
-  if(type_like("fern")) {
-    return("Fern")
-  }
-
-  message(paste0("No icon for plant type '", plant_type, "'"))
-
-  plant_type
-}
-
 hardiness_info <- function(hardiness) {
   if (rlang::is_empty(hardiness$min) && rlang::is_empty(hardiness$max)) {
     return(HTML("<span><b>Hardiness range unavailable</b></span>"))
@@ -110,27 +53,60 @@ hardiness_info <- function(hardiness) {
 }
 
 # Clean up messy sunlight entries
+# parse_sunlight <- function(sunlight) {
+#   sunlight <- sunlight |>
+#     tolower() |>
+#     strsplit("/") |>
+#     purrr::list_flatten() |>
+#     unlist() |>
+#     trimws()
+#   sunlight <- gsub("filtered shade", "partial shade", sunlight)
+#   sunlight <- gsub("part shade", "partial shade", sunlight)
+#   sunlight <- gsub("part sun", "partial sun", sunlight)
+#   sunlight <- gsub("deep shade", "full shade", sunlight)
+#
+#   sunlight
+# }
+
 parse_sunlight <- function(sunlight) {
-  sunlight <- sunlight |>
-    #unlist() |>
-    #strsplit("(?<=.)(?=[[:upper:]])", perl = TRUE) |>
-    #unlist() |>
-    tolower() |>
-    strsplit("/") |>
-    purrr::list_flatten() |>
-    unlist() |>
-    trimws()
+
+  sunlight <- unlist(sunlight)
+  valid_choices <- c("full shade", "partial shade", "partial sun", "full sun")
+
+  if (all(tolower(sunlight) %in% valid_choices)) {
+    sunlight <- tolower(sunlight)
+  } else if (identical(tolower(sunlight), "shade")) {
+    sunlight <- "full shade"
+    # } else if (identical(tolower(sunlight), "part shade")) {
+    #   sunlight <- "partial shade"
+  } else if (identical(tolower(sunlight), "sun")) {
+    sunlight <- "full sun"
+  } else if (any(grepl("/|,", sunlight)) || length(sunlight) > 1) {
+    sunlight <- sunlight |>
+      tolower() |>
+      strsplit("/") |>
+      purrr::list_flatten() |>
+      unlist() |>
+      trimws()
+  } else {
+    #if (grepl("(?=[[:upper:]])", sunlight, perl = TRUE))) {
+    sunlight <- sunlight |>
+      strsplit("(?<=.)(?=[[:upper:]])", perl = TRUE) |>
+      unlist() |>
+      trimws() |>
+      tolower()
+  }
+
   sunlight <- gsub("filtered shade", "partial shade", sunlight)
   sunlight <- gsub("part shade", "partial shade", sunlight)
   sunlight <- gsub("part sun", "partial sun", sunlight)
   sunlight <- gsub("deep shade", "full shade", sunlight)
-  valid_choices <- c("full shade", "partial shade", "partial sun", "full sun")
 
   if (!any(sunlight %in% valid_choices)) {
     message(paste("Sunlight entry '", sunlight, "' is not valid"))
   }
 
-  # Fill if any choices are missing in the middle
+  # Reorder and fill if any choices are missing in the middle
   idx <- which(valid_choices %in% sunlight)
   valid_choices[idx[1]:tail(idx, 1)]
 }
@@ -151,13 +127,7 @@ sunlight_info <- function(sunlight) {
     return(NULL)
   }
 
-  if (identical(tolower(sunlight), "shade")) {
-    sunlight <- "full shade"
-  } else if (identical(tolower(sunlight), "sun")) {
-    sunlight <- "full sun"
-  } else {
-    sunlight <- parse_sunlight(sunlight)
-  }
+  sunlight <- parse_sunlight(sunlight)
 
   icon_files <- purrr::map(sunlight, get_sunlight_icon)
   sun_icons <- paste0("<img src=www/noun_icons/", icon_files,
@@ -165,7 +135,7 @@ sunlight_info <- function(sunlight) {
   HTML(paste0("<span><strong>Sunlight needs: </strong>", sun_icons, "</span>"))
 }
 
-watering_info <- function(water_needs) {
+watering_info <- function(water_needs, as_int = FALSE) {
   if (is.null(water_needs)) {
     return(NULL)
   }
@@ -181,6 +151,10 @@ watering_info <- function(water_needs) {
 
   if (n_drops == 0) {
     message(paste("Water needs entry '", water_needs, "' is not valid"))
+  }
+
+  if (as_int) {
+    return(n_drops)
   }
 
   water_icon <- paste("<img src=www/noun_icons/noun-water-344559.svg",
@@ -343,33 +317,18 @@ no_filters <- function() {
   shinyjs::disable("apply_filters")
 }
 
-update_plant_list <- function(ns, details, your_border) {
+update_plant_list <- function(ns, details, your_border, card_ids, search_ids) {
   if (length(details) > 0) {
     insert_plant_cards(ns, details)
-    purrr::iwalk(details, ~ plant_card_server(.y, .x, your_border))
-  }
-}
-
-update_results_ui <- function(rem_pages, rem_ids, any_results = FALSE) {
-  shinyjs::show("show_more")
-  shinyjs::removeClass(id = "show_more", "btn-spinner")
-  shinyjs::removeClass(id = "show_more_text", "show-more-busy")
-  if (length(rem_pages) == 0 && length(rem_ids) == 0) {
-    if (!any_results) {
-      show_no_results_modal()
-      shinyjs::hide("show_more")
-    } else {
-      shinyjs::removeClass("show_more_text", "show-more-ready")
-      shinyjs::addClass("show_more_text", "no-more")
-      shinyjs::disable("show_more")
-    }
-  } else {
-    shinyjs::enable("show_more")
-    shinyjs::removeClass("show_more_text", "no-more")
-    shinyjs::addClass("show_more_text", "show-more-ready")
-    if (!any_results) {
-      print("NOTHING FOUND YET")
-      #TODO: Add 'nothing found yet' click show more to try again
-    }
+    details |>
+      purrr::iwalk(
+        ~ plant_card_server(
+          id = .y,
+          details_record = .x,
+          your_border = your_border,
+          card_ids = card_ids,
+          search_ids = search_ids
+        )
+      )
   }
 }
