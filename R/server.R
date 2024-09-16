@@ -1,4 +1,4 @@
-#' @import shiny
+#' @import shiny httr2
 server <- function(input, output, session) {
 
   # Check url to see if it contains a zone, an active tab, or plants

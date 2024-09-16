@@ -11,6 +11,7 @@ Depends:
     R (>= 4.1),
     glue
 Imports: 
+    httr2,
     purrr,
     rlang,
     shiny
