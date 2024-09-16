@@ -141,7 +141,7 @@ species list.
 ### Hardiness zone data
 
 The hardiness zone information in this app come from the [PRISM Climate Group](https://prism.oregonstate.edu/). Zones were mapped to US city names using 
-data from [United States Zip Codes.og](https://www.unitedstateszipcodes.org/).
+data from [United States Zip Codes.org](https://www.unitedstateszipcodes.org/).
 
 ## Bookmarking
 
