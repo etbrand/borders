@@ -3,6 +3,7 @@ choose_plants_UI <- function(id) {
 
   bslib::nav_panel(
     title = "Choose plants",
+    value = "choose",
     tags$div(
       class = "container",
       tags$div(
@@ -197,14 +198,11 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
 
       plant_details <- reactiveVal(default_details$data)
 
-      #TODO: This could just be a list?
       api_info <- reactiveValues(
         url_args = list(hardiness = hardiness_range(zone)),
         addl_filters = list(include_no_img = FALSE, include_trees = FALSE),
         rem_pages = default_zone_data[[zone]]$rem_pages,
-        rem_ids = default_details$rem_ids,
-        #TODO: Can remove
-        error = FALSE
+        rem_ids = default_details$rem_ids
       )
 
       observeEvent(input$show_more, {
@@ -308,8 +306,6 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
         shinyjs::addClass(id = "search_text", "search-ready")
 
         if (details$status == "api_error") {
-          api_info$error <- TRUE
-          print("updated from sr error")
           search_ids(NULL)
           show_api_error_modal()
         } else {
@@ -370,8 +366,7 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
       }, ignoreInit = TRUE)
 
       observeEvent(input$apply_filters, {
-        print(api_info$url_args)
-        print(api_info$addl_filters)
+
         status <- "OK"
         new_details <- rem_ids <- rem_pages <- NULL
 
@@ -393,7 +388,9 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
         url_args <- filter_set$url_args
         addl_filters <- filter_set$addl_filters
 
-        # Query the first page separately to get the results page_count
+        # The logic to update the plant list is somewhat complicated. See
+        # README for more details
+
         page1_resp <- do.call(req_species_list, url_args) |>
           httr2::req_perform()
 
@@ -415,7 +412,7 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
           rem_pages <- page_batch$rem_pages
 
           if (status == "OK") {
-            # TODO: Do we even need data? / maybe just keep images
+
             combined_pages <- c(page1$data, page_batch$data)
             combined_ids <- names(page1$data) |>
               to_api_ids() |>
@@ -425,8 +422,6 @@ choose_plants_server <- function(id, zone, your_border, saved_plants,
             status <- details_batch$status
             new_details <- details_batch$data
             rem_ids <- details_batch$rem_ids
-
-            print(paste("Length new details:", length(new_details)))
 
             if (status == "OK" && length(new_details) == 0) {
               more_plants <- req_more_plants(

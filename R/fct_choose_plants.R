@@ -117,8 +117,8 @@ make_plant_stub <- function(session, id, details_record, your_border, card_ids,
         class = "align-self-center me-2",
         tags$img(
           src = img_path,
-          height = 35,
-          width = 35,
+          height = 40,
+          width = 40,
           onerror = img_on_error
         )
       ),
@@ -159,6 +159,7 @@ update_border <- function(session, id, your_border, details_record, card_ids,
     shiny::removeUI(selector =  paste0("#", id, "_stub"))
 
     if (length(your_border()) == 0) {
+      shinyjs::hide("save_border", asis = TRUE)
       shinyjs::show("empty_border", asis = TRUE)
     }
 
@@ -184,6 +185,7 @@ update_border <- function(session, id, your_border, details_record, card_ids,
 
     if (length(your_border()) == 1) {
       shinyjs::hide("empty_border", asis = TRUE)
+      shinyjs::show("save_border", asis = TRUE)
     }
 
     shiny::insertUI(
@@ -215,17 +217,32 @@ update_border <- function(session, id, your_border, details_record, card_ids,
 
   }
 
-  # Update url for bookmarking
-  zone_prefix <- strsplit(isolate(session$clientData$url_hash), "-")[[1]][1]
-  if (length(your_border()) == 0) {
-    new_url <- zone_prefix
+  shinyjs::runjs(paste0(
+    "window.location.hash = '", update_url(session, your_border()), "';"))
+
+}
+
+# Update url for bookmarking
+update_url <- function(session, your_border) {
+
+  current_url <- isolate(session$clientData$url_hash)
+  split_url <- strsplit(current_url, "_")[[1]]
+
+  if (length(your_border) == 0) {
+    if (length(split_url) == 4) {
+      new_url <- paste(split_url[c(1:2, 4)], collapse = "_")
+    } else {
+      new_url <- paste(split_url[1:2], collapse = "_")
+    }
   } else {
-    id_str <- paste(to_api_ids(names(your_border())), collapse = "-")
-    new_url <- paste0(zone_prefix, "-", id_str)
+    id_str <- paste(to_api_ids(names(your_border)), collapse = "-")
+    if (length(split_url) == 4) {
+      new_url <- paste0(c(split_url[1:2], id_str, split_url[4]), collapse = "_")
+    } else {
+      new_url <- paste0(c(split_url[1:2], id_str), collapse = "_")
+    }
   }
-
-  shinyjs::runjs(paste0("window.location.hash = '", new_url, "';"))
-
+  new_url
 }
 
 #' Update show more

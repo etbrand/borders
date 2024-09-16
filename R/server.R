@@ -1,16 +1,24 @@
 #' @import shiny
 server <- function(input, output, session) {
 
-  # Check url to see if it contains a zone or saved plants
-  url <- strsplit(isolate(session$clientData$url_hash), "-")[[1]]
-  zone_ID <- gsub("#", "", url[1])
-  saved_plants <- tail(url, -1)
-  saved_plants <- saved_plants[saved_plants %in% as.character(1:10000)]
+  # Check url to see if it contains a zone, an active tab, or plants
+
+  url <- strsplit(isolate(session$clientData$url_hash), "_")[[1]]
+
+  if (length(url) > 0) {
+    zone <- gsub("#", "", url[1])
+    zone <- if (zone %in% paste0("zone", 3:11)) zone else NULL
+    plants <- strsplit(url[3], "-")[[1]]
+    plants <- plants[plants %in% as.character(1:10000)]
+    bookmark <- list(zone = zone, plants = plants)
+  } else {
+    bookmark <- NULL
+  }
+
   your_border <- reactiveVal()
 
-  if (zone_ID %in% paste0("zone", 3:11)) {
-    choose_plants_server("choose_plants", zone_ID, your_border, saved_plants)
-    #at_a_glance_server("at_a_glance", your_border)
+  if (not_null(bookmark$zone)) {
+    choose_plants_server("choose_plants", zone, your_border, bookmark$plants)
     border_info_server("border_info", your_border)
   } else {
     shiny::showModal(
@@ -59,7 +67,7 @@ server <- function(input, output, session) {
             )
           )
         ),
-        footer = actionButton("go", "Let's go", style = "width: 25%;")
+        footer = actionButton("go", "Find plants", style = "width: 25%;")
       )
     )
 
@@ -116,16 +124,29 @@ server <- function(input, output, session) {
       } else {
         zone <- input$zone
       }
-      zone_ID <- paste0("zone", zone)
-      shinyjs::runjs(paste0("window.location.hash = '", zone_ID, "';"))
+
+      url_prefix <- paste0("zone", zone, "_choose")
+
+      shinyjs::runjs(paste0("window.location.hash = '", url_prefix, "';"))
       choose_plants_server("choose_plants", paste0("zone", zone), your_border,
                            saved_plants = NULL)
-      at_a_glance_server("at_a_glance", your_border)
       border_info_server("border_info", your_border)
       shiny::removeModal()
     })
 
   }
+
+  observeEvent(input$current_tab, {
+    current_url <- session$clientData$url_hash
+    split_url <- strsplit(current_url, "_")[[1]]
+    split_url[2] <- input$current_tab
+    if (input$current_tab == "info") {
+      new_url <- paste(split_url, collapse = "_")
+    } else {
+      new_url <- paste(split_url[1:3], collapse = "_")
+    }
+    shinyjs::runjs(paste0("window.location.hash = '", new_url, "';"))
+  }, ignoreInit = TRUE)
 
   output$n_plants <- renderText({ length(your_border()) })
 

@@ -166,14 +166,6 @@ get_flower_color <- function(color_record, to_hex = TRUE) {
   }
 }
 
-make_color_row <- function(plant_record) {
-  data.frame(
-    common_name = plant_record$common_name,
-    scientific_name = unlist(plant_record$scientific_name),
-    color = plant_record$hex_color
-  )
-}
-
 # Check that all functions used for a plant entry will not fail
 no_error <- function(fct, id, ...) {
   rtrn <- tryCatch(fct(...), error = identity)

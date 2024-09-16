@@ -1,3 +1,4 @@
+#' @import shinyjs
 ui <- function() {
   shiny::addResourcePath("www", system.file("www", package = "borders"))
   tagList(
@@ -8,6 +9,7 @@ ui <- function() {
       tags$script(src = "www/js/toggleColor.js")
     ),
     bslib::page_navbar(
+      id = "current_tab",
       title = tags$div(
         class = "d-inline-flex align-content-start;",
         tags$img(class = "align-self-center",
@@ -58,6 +60,17 @@ ui <- function() {
           tags$div(
             class = "offcanvas-body",
             tags$div(
+              shinyjs::hidden(
+                tags$div(
+                  id = "save_border",
+                  class = "alert alert-secondary mb-3 ms-2 me-2",
+                  style = "font-size: 14px;",
+                  tags$em(
+                    paste("To save your border, bookmark this page in your",
+                          "browser.")
+                  )
+                )
+              ),
               tags$div(
                 id = "empty_border",
                 "Nothing in your border. Choose plants from the plant list."
@@ -67,7 +80,6 @@ ui <- function() {
           )
         )
       ),
-      #getting_started_UI("getting_started"),
       choose_plants_UI("choose_plants"),
       border_info_UI("border_info")
     )

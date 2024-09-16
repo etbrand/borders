@@ -12,7 +12,7 @@ req_species_list <- function(...) {
   req <- glue::glue("https://perenual.com/api/species-list?",
                     "key={Sys.getenv('PERENUAL_KEY')}") |>
     httr2::request() |>
-    req_error(is_error = \(resp) FALSE) |>
+    httr2::req_error(is_error = \(resp) FALSE) |>
     httr2::req_url_query(!!!single_params)
   if (length(multi_params) > 0) {
     multi_string <- multi_params |>
@@ -129,7 +129,7 @@ req_details <- function(id) {
              "key={Sys.getenv('PERENUAL_KEY')}") |>
     httr2::request() |>
     httr2::req_retry(max_tries = 3) |>
-    req_error(is_error = \(resp) FALSE) |>
+    httr2::req_error(is_error = \(resp) FALSE) |>
     httr2::req_perform()
 }
 
