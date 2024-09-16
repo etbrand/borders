@@ -1,9 +1,9 @@
 # Borders
 
-Borders is a tool to help users choose plants for a garden border. Users are 
-first asked to enter their US ZIP Code and then taken to a page that allows them
-to explore border plants for their USDA hardiness zone (there is also an option 
-to enter their hardiness zone directly in case they live outside the US). They 
+Borders is a tool to help choose plants for a garden border. Users are first 
+asked to enter their US ZIP Code and then taken to a page that allows them to 
+explore border plants for their USDA hardiness zone (there is also an option to 
+enter their hardiness zone directly in case they live outside the US). They 
 can then add plants to their border, which can be viewed in a right-side 
 Offcanvas panel.
 
@@ -15,15 +15,15 @@ There are three ways a user can update their border:
 
 ## Design
 
-This app was built using the [!bslib](https://rstudio.github.io/bslib/) package 
+This app was built using the [bslib](https://rstudio.github.io/bslib/) package 
 and makes heavy use of Bootstrap 5 responsive classes. It was set up for both 
 desktop and mobile displays.
 
 In order to keep the UI light for mobile displays, this app makes use of 
-Bootstrap's [!Offcanvas](https://getbootstrap.com/docs/5.0/components/offcanvas/) 
+Bootstrap's [Offcanvas](https://getbootstrap.com/docs/5.0/components/offcanvas/) 
 for viewing your border and selecting filters on the **Choose plants** tab.
 
-Plant icons used in this app are from the [!Noun Project](https://thenounproject.com/). 
+Plant icons used in this app are from the [Noun Project](https://thenounproject.com/). 
 When possible, plants are mapped to an icon based on plant type.
 
 ## Structure
@@ -140,8 +140,8 @@ species list.
 
 ### Hardiness zone data
 
-The hardiness zone information in this app come from the [!PRISM Climate Group](https://prism.oregonstate.edu/). Zones were mapped to US city names using 
-data from [!United States Zip Codes.og](https://www.unitedstateszipcodes.org/).
+The hardiness zone information in this app come from the [PRISM Climate Group](https://prism.oregonstate.edu/). Zones were mapped to US city names using 
+data from [United States Zip Codes.og](https://www.unitedstateszipcodes.org/).
 
 ## Bookmarking
 
