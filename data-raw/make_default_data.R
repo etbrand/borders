@@ -1,28 +1,24 @@
-#TODO: Run again after tree index built
+# Make default data to populate the app on startup
+
 pkgload::load_all()
 
-# Get default data to populate the app on startup
 get_zone_data <- function(zone) {
   message(paste0("Fetching data for zone ", zone, "..."))
   print(hardiness_range(zone))
   page1_resp <-
-    do.call(query_species_list, list(hardiness = hardiness_range(zone))) |>
+    do.call(req_species_list, list(hardiness = hardiness_range(zone))) |>
     httr2::req_perform()
   page1 <- page1_resp |>
     process_page_resp(list(filter_no_img = TRUE, include_trees = FALSE))
 
-  if (length(page1$data) == 0) {
-    message("No data in page 1")
-  }
-
-  page_batch <- query_page_batch(
+  page_batch <- req_page_batch(
     rem_pages = sample(2:page1$page_count),
     url_args = list(hardiness = hardiness_range(zone)),
     addl_filters = list(filter_no_img = TRUE, include_trees = FALSE),
     pages_to_add = 5
   )
 
-  details <- query_details_batch(sample(page_batch$ok_ids))
+  details <- req_details_batch(sample(page_batch$ok_ids))
   Sys.sleep(15)
   print(length(details$data))
   list(details = details, rem_pages = page_batch$rem_pages)

@@ -1,0 +1,36 @@
+flower|violet|begonia|daisy|lily|orchid|hydrangea|laburnum|myrtle|tulip|
+magnolia|abelia| aster|bugbane|monkshood|ladybells|ajania|alyssum|blue star|
+astilbe|borage|bugloss|brugmansia|camass|camellia|canna|trumpet|
+cautleya|cerastium|chamomile|chionodoxa|chrysanthemum|clematis|jasmine|
+lonicera|cobaea|clitoria|lamprocapnos|crocus|dogwood|corydalis|iris|
+cardoon|cymbalaria|delphinium|dahlia|daphne|carpobrotus|deutzia|dianthus|
+diascia|bleeding|foxglove|bells|echium|paperbush|anemone|aconite|
+eryngium|spurge|meadowsweet|forsythia|fothergilla|snowdrop|gardenia|
+bedstraw|gaura|broom|gentian|cranesbill|avens|gladiolus|lavender|flax|
+globularia|campanula|gypsophila|hamamelis|hellebor|rock rose|candytuft|
+hypericum|impatiens|cardinal climber|hyacinth|montbretia|sweetspire|
+jacobinia|kalanchoe|shrimp plant|kerria|knautia|kniphofia|hibiscus|
+kalmia|lavandin|edelweiss|leptodermis|leucojum|lithodora|lobelia|
+daffodil|poppy|buttons|parrot|trefoil|annual honesty|lupine|catchfly|
+campion|lycoris|loosestrife|forest bell|mahonia|singapore holly|mallow|
+madevilla|dipladenia|phlox|mock orange|nepeta|lotus|bromeliad|catmint|
+water mimosa|oleander|snow wreath|floating heart|mickey mouse|primrose|
+sundrops|navelwort|prickly pear|prickly-pear|hyssop|star of bethlehem|
+tweedia|kerosene bush|pachypodium|cardinal's guard|fuchsia|russian sage|
+penstemon|peony|ragwort|feverfew|granadilla|patrinia|geranium|lousewort|
+beardtongue|rose cactus|mountain fleece|queen's wreath|petrorhagia|
+petunia|stonecrop|jerusalem sage|phlomis|turkish sage|mullein|
+large-styled crosswort|caucasian crosswort|chinese lantern|
+obedient plant|lungwort|bethlehem sage|rose|azalea|rhododendron|rodgersia|
+ruellia|iceplant|sage|lilac|spirea|spiraea|sisyrinchium|goldenrod|scilla|
+skullcap|squill|nasturtium|triteleia|spiderwort|germander|comfrey|snowbell|
+jade vine|betony|black-eyed susan|thyme|meadow rue|honeysuckle|heliotrope|
+barrenwort|verbascum|verbena|ironweed|veronica|speedwell|culver's root|
+viburnum|periwinkle|weigela|wisteria|yellowhorn|adam's needle|yucca|calla|
+zenobia|zinnia|zizia|golden alexander|yarrow|ornamental onion|jack-in-the-pulpit|
+thrift|rock cress|angelica|bidens|watsonia|bee balm|mandevilla|heliconia|
+pussytoes|agalinis|saxifrage|cress|fairy slipper|starwort|moonwort|bartonia|
+indigo|balsamroot|milkvetch|milk vetch|milkweed|arnica|swamp pink|sandwort|
+astragalus|bindweed|shepherd's purse|pea shrub|toothwort|heather|paintbrush
+caraway|ceanothus|starthistle|bottlebush|swanseed|centaury|knapweed|
+silver lace vine|fritillary|crown imperial|ox eye

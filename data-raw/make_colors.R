@@ -1,10 +1,6 @@
-leaf_colors <- list(
-  green = "#004600"
-)
+# Make flower color list
 
-#TODO: Add raspberry, maize, mauve, copper, tan
-#TODO: Just put these in an aesthetic order for sorting?
-# Drop e's so <color>ish also matches
+# E's are dropped so <color>ish also matches
 flower_colors <- list(
   blu = "#0F7BDC",
   bronz = "#DEA824",

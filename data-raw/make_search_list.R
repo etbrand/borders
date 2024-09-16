@@ -12,17 +12,16 @@ make_search_df <- function(resp_list) {
   )
 }
 
-#TODO: Rewrite with new query functions; remove resp_to_list()
 search_list <- NULL
 for (zone in 3:11) {
   message(paste0("Fetching data for zone ", zone, "..."))
-  page1 <- query_species_list(hardiness = hardiness_range(zone)) |>
+  page1 <- req_species_list(hardiness = hardiness_range(zone)) |>
     resp_to_list()
   zone_df <- make_search_df(page1)
   for (page in 2:page1$page_count) {
     message(paste0("Page ", page, "..."))
     zone_df <-
-      query_species_list(hardiness = hardiness_range(zone), page = page) |>
+      req_species_list(hardiness = hardiness_range(zone), page = page) |>
       resp_to_list() |>
       make_search_df() |>
       bind_rows(zone_df)

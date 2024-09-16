@@ -17,6 +17,7 @@ filter_selects <- list(
 )
 
 filter_checkboxes <- list(
+  include_no_img = "Include plants with no images",
   edible_only = "Edible plants only",
   nonpoisonous_only = "Nonpoisonous plants only",
   include_trees = "Include trees"

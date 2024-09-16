@@ -1,5 +1,8 @@
-library(crayon)
+# Create lookups to remove trees and filter by color
+
 pkgload::load_all()
+
+flower_str <- paste(readLines("data-raw/flower_str.txt"), collapse = "")
 
 is_tree <- function(plant_type) {
   if (is.null(plant_type)) {
@@ -12,37 +15,14 @@ like_flower <- function(name) {
   if (is.null(name)) {
     return(FALSE)
   }
-  match_str <- paste0(
-    "flower|violet|begonia|daisy|lily|orchid|hydrangea|laburnum|myrtle|tulip|",
-    "magnolia|abelia|bugbane|monkshood|ladybells|ajania|alyssum|blue star|",
-    "aster|astilbe|borage|bugloss|brugmansia|camass|camellia|canna|trumpet|",
-    "cautleya|cerastium|chamomile|chionodoxa|chrysanthemum|clematis|jasmine|",
-    "lonicera|cobaea|clitoria|lamprocapnos|crocus|dogwood|corydalis|iris|",
-    "cardoon|cymbalaria|delphinium|dahlia|daphne|carpobrotus|deutzia|dianthus|",
-    "diascia|bleeding|foxglove|fairy bells|echium|paperbush|anemone|aconite|",
-    "eryngium|spurge|meadowsweet|forsythia|fothergilla|snowdrop|gardenia|",
-    "bedstraw|gaura|broom|gentian|cranesbill|avens|gladiolus|lavender|flax|",
-    "globularia|campanula|gypsophila|hamamelis|hellebore|rock rose|candytuft|",
-    "hypericum|impatiens|cardinal climber|hyacinth|montbretia|sweetspire|",
-    "jacobinia|kalanchoe|shrimp plant|kerria|knautia|kniphofia|hibiscus|",
-    "kalmia|lavandin|edelweiss|leptodermis|leucojum|lithodora|lobelia"
-  )
-  grepl(match_str, name, ignore.case = TRUE)
-}
-
-attracts_pollinators <- function(attracts) {
-  if (is.null(attracts)) {
-    return(FALSE)
-  }
-  grepl("bees|butterflies", attracts, ignore.case = TRUE)
+  grepl(flower_str, name, ignore.case = TRUE)
 }
 
 has_flowers <- function(details_record) {
   any(
     like_flower(details_record$type),
     like_flower(details_record$common_name),
-    like_flower(details_record$scientific_name),
-    attracts_pollinators(details_record$attracts)
+    like_flower(details_record$scientific_name)
   )
 }
 
@@ -117,27 +97,20 @@ append_color <- function(color_idx, id, color_record) {
   color_idx
 }
 
-ids <- 1:5000
+ids <- 1:10000
 tree_ids <- NULL
 color_idx <- NULL
-failed_ids <- NULL
+
 for (id in ids) {
-  resp <- query_details_safe(id)
-  if (identical(resp, "api_error")) {
-    failed_ids <- c(failed_ids, id)
-  } else if (!identical(resp, "invalid_record")) {
-    if (is_tree(resp$type)) {
+  resp <- req_details(id)
+  if (resp$status == 200) {
+    details_record <- resp_to_list(resp)
+    if (is_tree(details_record$type)) {
       tree_ids <- c(tree_ids, id)
     }
-    if (has_flowers(resp)) {
-      cat(green(
-        paste0("Plant '", resp$common_name, "' (id ", resp$id, ") is a flower \n")
-      ))
-      color_idx <- append_color(color_idx, id, resp$flower_color)
+    if (has_flowers(details_record)) {
+      color_idx <- append_color(color_idx, id, details_record$flower_color)
     } else {
-      message(paste0(
-        "Plant '", resp$common_name, "' (id ", resp$id, ") is not a flower"
-      ))
       color_idx$no_color <- c(color_idx$no_color, id)
     }
   }
