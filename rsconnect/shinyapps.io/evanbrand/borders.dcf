@@ -1,0 +1,10 @@
+name: borders
+title:
+username: evanbrand
+account: evanbrand
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12689660
+bundleId: 9106730
+url: https://evanbrand.shinyapps.io/borders/
+version: 1
