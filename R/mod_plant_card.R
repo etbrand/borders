@@ -3,8 +3,6 @@ plant_card_UI <- function(id, details_record, in_border = FALSE,
 
   ns <- shiny::NS(id)
 
-  #TODO: Check if this looks ok in guide
-  # error_img <- "www/noun_icons/noun-no-image-3581362.svg"
   if (not_null(details_record$default_image$regular_url)) {
     img_path <- details_record$default_image$regular_url
   } else {
@@ -16,6 +14,7 @@ plant_card_UI <- function(id, details_record, in_border = FALSE,
     bslib::card(
       id = ns("card"),
       class = if (simplified) "simple-plant-card" else "plant-card mx-2 my-2",
+      style = if (!simplified && in_border) "background-color: #DBDBDB",
       if (!simplified) {
         plant_card_header(
           plant_type = details_record$type,
@@ -65,6 +64,7 @@ plant_card_server <- function(id, details_record, your_border, card_ids,
       shinyjs::onclick(
         id = "card_update",
         expr = update_border(
+          session = session,
           id = id,
           details_record = details_record,
           your_border = your_border,

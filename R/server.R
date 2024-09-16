@@ -1,18 +1,17 @@
-options(r2d3.shadow = FALSE)
-
 #' @import shiny
 server <- function(input, output, session) {
 
-  # Allow user to navigate directly to their zone page and skip the modal
-  zone_ID <- gsub("#", "", isolate(session$clientData$url_hash))
-  #TODO: Remove later
-  #zone_ID <- "zone9"
+  # Check url to see if it contains a zone or saved plants
+  url <- strsplit(isolate(session$clientData$url_hash), "-")[[1]]
+  zone_ID <- gsub("#", "", url[1])
+  saved_plants <- tail(url, -1)
+  saved_plants <- saved_plants[saved_plants %in% as.character(1:10000)]
   your_border <- reactiveVal()
 
   if (zone_ID %in% paste0("zone", 3:11)) {
-    choose_plants_server("choose_plants", zone_ID, your_border)
-    at_a_glance_server("at_a_glance", your_border)
-    care_guide_server("care_guide", your_border)
+    choose_plants_server("choose_plants", zone_ID, your_border, saved_plants)
+    #at_a_glance_server("at_a_glance", your_border)
+    border_info_server("border_info", your_border)
   } else {
     shiny::showModal(
       shiny::modalDialog(
@@ -32,7 +31,8 @@ server <- function(input, output, session) {
             )
           ),
           tags$div(
-            style = "align-self: center; padding-bottom: 40px; padding-top: 20px;",
+            style =
+              "align-self: center; padding-bottom: 40px; padding-top: 20px;",
             shiny::selectizeInput(
               inputId = "zip",
               label = "US ZIP Code:",
@@ -118,9 +118,10 @@ server <- function(input, output, session) {
       }
       zone_ID <- paste0("zone", zone)
       shinyjs::runjs(paste0("window.location.hash = '", zone_ID, "';"))
-      choose_plants_server("choose_plants", paste0("zone", zone), your_border)
+      choose_plants_server("choose_plants", paste0("zone", zone), your_border,
+                           saved_plants = NULL)
       at_a_glance_server("at_a_glance", your_border)
-      care_guide_server("care_guide", your_border)
+      border_info_server("border_info", your_border)
       shiny::removeModal()
     })
 

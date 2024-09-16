@@ -44,15 +44,14 @@ choose_plants_UI <- function(id) {
                 class = "search-ready"
               )
             )
-          )#,
-          #uiOutput(ns("search_results"))
+          )
         ),
         tags$button(
           class = "btn btn-primary",
           type = "button",
           `data-bs-toggle` = "offcanvas",
           `data-bs-target` = paste0("#", ns("filters")),
-          `aria-controls` = "offcanvasExample",
+          `aria-controls` = ns("filters"),
           tags$span(icon("filter"), "Filter plant list")
         ),
         tags$div(
@@ -75,8 +74,19 @@ choose_plants_UI <- function(id) {
             )
           ),
           tags$div(
-            class = "offcanvas-body d-flex justify-content-center",
+            class = "offcanvas-body",
             tags$div(
+              class = "alert alert-secondary mb-3 ms-2 me-2",
+              style = "font-size: 14px;",
+              tags$em(
+                paste(
+                  "Tip: For best results, choose only a few filters that are",
+                  "most important to you."
+                )
+              )
+            ),
+            tags$div(
+              class = "d-flex flex-wrap justify-content-center",
               purrr::map(names(filter_selects), ~ make_filters(.x, ns)),
               purrr::imap(
                 filter_checkboxes,
@@ -103,7 +113,8 @@ choose_plants_UI <- function(id) {
         class = "d-flex flex-wrap",
         tags$div(
           id = ns("show_more_div"),
-          class = "d-flex flex-grow-1 justify-content-center align-items-center mb-4",
+          class =
+            "d-flex flex-grow-1 justify-content-center align-items-center mb-4",
           shinyjs::hidden(
             actionButton(
               class = "btn-discreet-lg",
@@ -121,19 +132,52 @@ choose_plants_UI <- function(id) {
 }
 
 #' @import rlang
-choose_plants_server <- function(id, zone, your_border, city = NULL) {
+choose_plants_server <- function(id, zone, your_border, saved_plants,
+                                 city = NULL) {
+
   moduleServer(
     id,
     function(input, output, session) {
 
       ns <- NS(id)
 
-
       default_details <- default_zone_data[[zone]]$details
-      insert_plant_cards(ns, default_details$data, your_border)
-
       card_ids <- reactiveVal(names(default_details$data))
       search_ids <- reactiveVal()
+
+      if (length(saved_plants) == 0) {
+        insert_plant_cards(ns, default_details$data, NULL)
+      } else {
+
+        saved_plant_details <- req_details_batch(saved_plants)
+
+        if (saved_plant_details$status != "OK") {
+          show_restore_error_modal()
+          insert_plant_cards(ns, default_details$data, NULL)
+        } else {
+
+          isolate({
+            saved_plant_details$data |>
+              purrr::imap(
+                ~ update_border(
+                  session = session,
+                  id = .y,
+                  your_border = your_border,
+                  details_record = .x,
+                  card_ids = card_ids,
+                  search_ids = search_ids
+                )
+              )
+          })
+
+          insert_plant_cards(
+            ns = ns,
+            details = default_details$data,
+            border_ids = paste0("plant_", saved_plants)
+          )
+
+        }
+      }
 
       updateSelectizeInput(
         session = session,
@@ -151,15 +195,15 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
       shinyjs::show("show_more")
 
-      #TODO: Make
       plant_details <- reactiveVal(default_details$data)
 
       #TODO: This could just be a list?
       api_info <- reactiveValues(
         url_args = list(hardiness = hardiness_range(zone)),
-        addl_filters = list(filter_no_img = TRUE, filter_trees = TRUE),
+        addl_filters = list(include_no_img = FALSE, include_trees = FALSE),
         rem_pages = default_zone_data[[zone]]$rem_pages,
         rem_ids = default_details$rem_ids,
+        #TODO: Can remove
         error = FALSE
       )
 
@@ -177,7 +221,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
         # If any remaining ids from the last page batch, start with those
         if (length(rem_ids) > 0) {
-          details_batch <- query_details_batch(rem_ids)
+          details_batch <- req_details_batch(rem_ids)
           status <- details_batch$status
           new_details <- details_batch$data
           rem_ids <- details_batch$rem_ids
@@ -186,7 +230,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         # If no ids from last page batch or still no results after using the
         # remaining ids, get more pages
         if (status == "OK" && length(new_details) == 0) {
-          more_plants <- query_more_plants(
+          more_plants <- req_more_plants(
             url_args = api_info$url_args,
             addl_filters = api_info$addl_filters,
             rem_pages = api_info$rem_pages
@@ -198,6 +242,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         }
 
         if (length(new_details) > 0) {
+
           card_ids(c(card_ids(), names(new_details)))
           update_plant_list(
             ns = ns,
@@ -214,8 +259,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         api_info$rem_pages <- rem_pages
         api_info$rem_ids <- rem_ids
 
-        enable_filters()
-        update_show_more(rem_pages, rem_ids, TRUE)
+        update_show_more(rem_pages, rem_ids, status, TRUE)
 
       })
 
@@ -236,24 +280,17 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         }
       })
 
-      current_search_ids <- NULL
-
       observeEvent(input$search, {
-        print("SEARCH FIRED")
         plant_name <- input[[sub("by_", "search_", search_type())]]
         col_name <- sub("by_", "", search_type())
         new_search_ids <- search_list[[zone]][[search_type()]] |>
           dplyr::filter(!!rlang::sym(col_name) == plant_name) |>
           dplyr::pull(id)
-        #if (!identical(new_search_ids, current_search_ids)) {
-        #  current_search_ids <<- new_search_ids
-          search_ids(paste0("plant_", new_search_ids))
-        #}
+        search_ids(paste0("plant_", new_search_ids))
       })
 
       observeEvent(search_ids(), {
-        #req(!identical(search_ids(), current_search_ids))
-        #current_search_ids <<- isolate(search_ids())
+
         shinyjs::removeClass(id = "search_text", "search-ready")
         shinyjs::addClass(id = "search_text", "search-busy")
         shinyjs::disable("search")
@@ -264,7 +301,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
           immediate = TRUE
         )
 
-        details <- query_details_batch(to_api_ids(search_ids()))
+        details <- req_details_batch(to_api_ids(search_ids()))
 
         shinyjs::enable("search")
         shinyjs::removeClass(id = "search_text", "search-busy")
@@ -276,10 +313,10 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
           search_ids(NULL)
           show_api_error_modal()
         } else {
-          #browser()
           search_results <- details$data |>
             purrr::imap(
               ~ make_plant_stub(
+                session = session,
                 id = .y,
                 details_record = .x,
                 your_border = your_border,
@@ -297,56 +334,44 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
       })
 
-      # output$search_results <- renderUI({
-      #   #req(!identical(search_ids(), current_search_ids))
-      #   #current_search_ids <<- isolate(search_ids())
-      #   shinyjs::removeClass(id = "search_text", "search-ready")
-      #   shinyjs::addClass(id = "search_text", "search-busy")
-      #   shinyjs::disable("search")
-      #   details <- query_details_batch(search_ids())
-      #
-      #   shinyjs::enable("search")
-      #   shinyjs::removeClass(id = "search_text", "search-busy")
-      #   shinyjs::addClass(id = "search_text", "search-ready")
-      #
-      #   if (details$status == "api_error") {
-      #     api_info$error <- TRUE
-      #     print("updated from sr error")
-      #     search_ids(NULL)
-      #     show_api_error_modal()
-      #   } else {
-      #     details$data |>
-      #       purrr::imap(
-      #         ~ make_plant_stub(
-      #           id = .y,
-      #           details_record = .x,
-      #           your_border = your_border,
-      #           card_ids = card_ids,
-      #           search_ids = search_ids,
-      #           ns = ns
-      #         )
-      #       )
-      #   }
-      #
-      # })
-
-      filters <- reactive({
+      si_filters <- reactive({
         filter_selects |>
           purrr::imap(~ if (identical(input[[.y]], unname(.x))) { NULL }
                       else { input[[.y]] }) |>
           purrr::compact()
       })
 
-      observeEvent(filters(), {
-        if (length(filters()) > 0) {
+      cb_filters <- reactive({
+        purrr::imap(filter_checkboxes, ~ input[[.y]])
+      })
+
+      observeEvent(c(si_filters(), cb_filters()), {
+
+        filters_chosen <-
+          length(si_filters()) > 0 || any(unlist(cb_filters()))
+
+        if (filters_chosen) {
           enable_filters()
         } else {
           no_filters()
         }
+
+        req(filters_chosen)
+
+        filter_set <- compose_filters(si_filters(), cb_filters(), zone)
+
+        if (identical(filter_set$url_args, api_info$url_args)
+            && identical(filter_set$addl_filters, api_info$addl_filters)) {
+          filters_applied()
+        } else {
+          enable_filters()
+        }
+
       }, ignoreInit = TRUE)
 
       observeEvent(input$apply_filters, {
-
+        print(api_info$url_args)
+        print(api_info$addl_filters)
         status <- "OK"
         new_details <- rem_ids <- rem_pages <- NULL
 
@@ -354,28 +379,22 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
         shinyjs::addClass(id = "apply_filters_text", "apply-filters-busy")
         shinyjs::disable("apply_filters")
 
+        purrr::walk(names(filter_selects), shinyjs::disable)
+        purrr::walk(names(filter_checkboxes), shinyjs::disable)
+
         removeUI(
           selector = ".flex-column:has([id ^=choose_plants][id $=card])",
           multiple = TRUE,
           immediate = TRUE
         )
 
-        url_args <- make_url_args(input, names(filter_selects))
-        api_info$url_args <- url_args
+        filter_set <- isolate(compose_filters(si_filters(), cb_filters(), zone))
 
-        #TODO: Change to use inputs
-        #TODO: Save to reactivevalues obj
-        addl_filters <- list(filter_no_img = TRUE, filter_trees = TRUE)
-
-        if (isTruthy(input$flower_color)) {
-          addl_filters <- addl_filters |>
-            c(list(flower_color = input$flower_color))
-        }
-
-        api_info$addl_filters <- addl_filters
+        url_args <- filter_set$url_args
+        addl_filters <- filter_set$addl_filters
 
         # Query the first page separately to get the results page_count
-        page1_resp <- do.call(query_species_list, url_args) |>
+        page1_resp <- do.call(req_species_list, url_args) |>
           httr2::req_perform()
 
         if (page1_resp$status_code != 200) {
@@ -386,8 +405,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
           page1 <- process_page_resp(page1_resp, addl_filters)
 
-          #rem_pages <- c(45, 3, 75)#2:5
-          page_batch <- query_page_batch(
+          page_batch <- req_page_batch(
             url_args = url_args,
             addl_filters = addl_filters,
             rem_pages = if (page1$page_count == 1) NULL else 2:page1$page_count
@@ -403,7 +421,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
               to_api_ids() |>
               c(page_batch$ok_ids) |>
               sample2()
-            details_batch <- query_details_batch(sample2(combined_ids))
+            details_batch <- req_details_batch(sample2(combined_ids))
             status <- details_batch$status
             new_details <- details_batch$data
             rem_ids <- details_batch$rem_ids
@@ -411,7 +429,7 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
             print(paste("Length new details:", length(new_details)))
 
             if (status == "OK" && length(new_details) == 0) {
-              more_plants <- query_more_plants(
+              more_plants <- req_more_plants(
                 url_args = url_args,
                 addl_filters = addl_filters,
                 rem_pages = page_batch$rem_pages
@@ -436,7 +454,6 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
             card_ids = card_ids,
             search_ids = search_ids
           )
-          filters_applied()
         } else {
           card_ids(NULL)
           if (status == "api_error") {
@@ -446,14 +463,21 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
 
         plant_details(new_details)
 
-        api_info$rem_pages <- rem_pages
-        api_info$rem_ids <- rem_ids
+        if (status == "OK") {
+          api_info$url_args <- url_args
+          api_info$addl_filters <- addl_filters
+          api_info$rem_pages <- rem_pages
+          api_info$rem_ids <- rem_ids
+          filters_applied()
+        } else {
+          enable_filters()
+        }
 
-        update_show_more(rem_pages, rem_ids, length(new_details) > 0)
+        purrr::walk(names(filter_selects), shinyjs::enable)
+        purrr::walk(names(filter_checkboxes), shinyjs::enable)
+        update_show_more(rem_pages, rem_ids, status, length(new_details) > 0)
 
       })
-
-      #border_ids <- reactiveVal()
 
       default_details$data |>
         purrr::iwalk(
@@ -465,61 +489,6 @@ choose_plants_server <- function(id, zone, your_border, city = NULL) {
             search_ids = search_ids
           )
         )
-
-      # remove_plant_stub <- function(border_ids, plant) {
-      #   border_ids <- setdiff(border_ids, plant)
-      #   shiny::removeUI(selector =  paste0("#", plant, "_stub"))
-      #   if (length(border_ids) == 0) {
-      #     shinyjs::show("empty_border", asis = TRUE)
-      #   }
-      # }
-
-      # observeEvent(your_border(), {
-      #   added_plant <- setdiff(names(your_border()), border_ids())
-      #   removed_plant <- setdiff(border_ids(), names(your_border()))
-      #
-      #
-      #   shiny::removeUI(selector =  paste0("#", plant, "_stub"))
-      #   if (length(border_ids) == 0) {
-      #     shinyjs::show("empty_border", asis = TRUE)
-      #   }
-      #
-      #   if (length(added_plant) == 1) {
-      #     if (length(your_border()) == 1) {
-      #       shinyjs::hide("empty_border", asis = TRUE)
-      #     }
-      #     details_record <- your_border()[[added_plant]]
-      #     shiny::insertUI(
-      #       selector = "#border_plants",
-      #       ui = make_plant_stub(added_plant, details_record, in_border = TRUE)
-      #     )
-      #     # shinyjs::onclick(
-      #     #   paste0("remove_", added_plant),
-      #     #   {
-      #     #     remove_plant_stub(border_ids, added_plant)
-      #     #     your_border(pop_id(your_border(), added_plant))
-      #     #     shinyjs::runjs(
-      #     #       paste0("toggleColor('", ns(added_plant), "-card');")
-      #     #     )
-      #     #   },
-      #     #   asis = TRUE
-      #     # )
-      #     #border_ids(c(border_ids(), added_plant))
-      #   }
-      #   if (not_empty(removed_plant)) {
-      #     remove_plant_stub(border_ids, removed_plant)
-      #   }
-      # }, ignoreNULL = FALSE)
-
-      # Return your_border with colors added
-      # TODO: Remove
-      reactive({
-        if (not_empty(your_border())) {
-          your_border() |>
-            purrr::map(~ get_flower_color(.x$flower_color)) |>
-            modifyList(your_border(), val = _)
-        }
-      })
 
     }
   )

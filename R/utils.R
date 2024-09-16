@@ -48,26 +48,12 @@ hardiness_info <- function(hardiness) {
   if (hardiness$min == hardiness$max) {
     HTML(glue::glue("<span><b>Hardiness zone:</b> {hardiness$min}</span>"))
   } else {
-    HTML(glue::glue("<span><b>Hardiness zones:</b> {hardiness$min} to {hardiness$max}</span>"))
+    HTML(glue::glue("<span><b>Hardiness zones:</b> {hardiness$min} to ",
+                    "{hardiness$max}</span>"))
   }
 }
 
 # Clean up messy sunlight entries
-# parse_sunlight <- function(sunlight) {
-#   sunlight <- sunlight |>
-#     tolower() |>
-#     strsplit("/") |>
-#     purrr::list_flatten() |>
-#     unlist() |>
-#     trimws()
-#   sunlight <- gsub("filtered shade", "partial shade", sunlight)
-#   sunlight <- gsub("part shade", "partial shade", sunlight)
-#   sunlight <- gsub("part sun", "partial sun", sunlight)
-#   sunlight <- gsub("deep shade", "full shade", sunlight)
-#
-#   sunlight
-# }
-
 parse_sunlight <- function(sunlight) {
 
   sunlight <- unlist(sunlight)
@@ -77,8 +63,6 @@ parse_sunlight <- function(sunlight) {
     sunlight <- tolower(sunlight)
   } else if (identical(tolower(sunlight), "shade")) {
     sunlight <- "full shade"
-    # } else if (identical(tolower(sunlight), "part shade")) {
-    #   sunlight <- "partial shade"
   } else if (identical(tolower(sunlight), "sun")) {
     sunlight <- "full sun"
   } else if (any(grepl("/|,", sunlight)) || length(sunlight) > 1) {
@@ -89,7 +73,6 @@ parse_sunlight <- function(sunlight) {
       unlist() |>
       trimws()
   } else {
-    #if (grepl("(?=[[:upper:]])", sunlight, perl = TRUE))) {
     sunlight <- sunlight |>
       strsplit("(?<=.)(?=[[:upper:]])", perl = TRUE) |>
       unlist() |>
@@ -165,7 +148,6 @@ watering_info <- function(water_needs, as_int = FALSE) {
 
 mix_colors <- function(cols) colorRampPalette(c(cols[[1]], cols[[2]]))(3)[2]
 
-#TODO: Could parse "light/pale/dark" separately
 get_flower_color <- function(color_record, to_hex = TRUE) {
   matches <- names(flower_colors) |>
     purrr::map_vec(~ regexpr(.x, color_record[[1]], ignore.case = TRUE))
@@ -192,13 +174,7 @@ make_color_row <- function(plant_record) {
   )
 }
 
-arrange_by_color <- function(df) {
-  df[TSP::solve_TSP(TSP::as.TSP(dist(t(col2rgb(df$color))))), ]
-  #colors[order(colMeans(col2rgb(colors)[c("red", "blue"), ]))]
-}
-
 # Check that all functions used for a plant entry will not fail
-
 no_error <- function(fct, id, ...) {
   rtrn <- tryCatch(fct(...), error = identity)
   if (inherits(rtrn, "error")) {
@@ -207,6 +183,11 @@ no_error <- function(fct, id, ...) {
   !inherits(rtrn, "error")
 }
 
+#' Validate plant entry
+#'
+#' Check if a plant entry is valid on the fly to avoid errors
+#' @param details_record Details record for a plant
+#' @return TRUE if plant entry is valid, false if not
 valid_plant_entry <- function(details_record) {
   functions_work <- c(
     no_error(simplify_plant_type, details_record$id, details_record$type),
@@ -217,54 +198,9 @@ valid_plant_entry <- function(details_record) {
   all(functions_work)
 }
 
-bs_modal <- function(id, type, title, body_content) {
-  title_icon <- switch(type,
-                       error = "triangle-exclamation",
-                       warning = "circle-exclamation")
-  tags$div(
-    id = id,
-    class = "modal fade",
-    `data-bs-backdrop` = "static",
-    `data-bs-keyboard` = "false",
-    tabindex = "-1",
-    `aria-labelledby` = paste0(id, "_label"),
-    `aria-hidden` = "true",
-    tags$div(
-      class = "modal-dialog",
-      tags$div(
-        class = "modal-content",
-        tags$div(
-          class = "modal-header",
-          h5(
-            id = paste0(id, "_label"),
-            class = "modal-title",
-            tags$span(icon(title_icon), title)
-          ),
-          tags$button(
-            type = "button",
-            class = "btn-close",
-            `data-bs-dismiss` = "modal",
-            `aria-label` = "Close"
-          )
-        ),
-        tags$div(
-          class = "modal-body",
-          body_content
-        ),
-        tags$div(
-          class = "modal-footer",
-          tags$button(
-            type = "button",
-            class = "btn btn-hbs",
-            `data-bs-dismiss` = "modal",
-            "Got it"
-          )
-        )
-      )
-    )
-  )
-}
-
+#' Show API error
+#'
+#' Modal to show when an API error occurs
 show_api_error_modal <- function() {
   shiny::showModal(
     shiny::modalDialog(
@@ -282,6 +218,25 @@ show_api_error_modal <- function() {
   )
 }
 
+#' Restore error modal
+#'
+#' Modal to show when an error occurs restoring from a bookmark
+show_restore_error_modal <- function() {
+  shiny::showModal(
+    shiny::modalDialog(
+      size = "m",
+      title = tags$span(icon("triangle-exclamation"), "Error loading border"),
+      bslib::card_body(
+        "There was an error loading your border. Please try again later."
+      ),
+      easyClose = TRUE
+    )
+  )
+}
+
+#' Show no results modal
+#'
+#' Modal to show when no results are available
 show_no_results_modal <- function() {
   shiny::showModal(
     shiny::modalDialog(
@@ -295,12 +250,19 @@ show_no_results_modal <- function() {
   )
 }
 
+#' Filters applied
+#'
+#' Switch CSS classes for the filter button when filters are applied
 filters_applied <- function() {
   shinyjs::removeClass(id = "apply_filters_text", "apply-filters-busy")
   shinyjs::removeClass(id = "apply_filters", "btn-spinner")
   shinyjs::addClass(id = "apply_filters_text", "filters-applied")
+  shinyjs::disable("apply_filters")
 }
 
+#' Enable filters
+#'
+#' Switch CSS classes for the filter button when filters are enabled
 enable_filters <- function() {
   shinyjs::enable("apply_filters")
   shinyjs::removeClass(id = "apply_filters_text", "filters-applied")
@@ -309,26 +271,13 @@ enable_filters <- function() {
   shinyjs::addClass(id = "apply_filters", "btn-spinner")
 }
 
+#' No filters
+#'
+#' Switch CSS classes for the filter button when no filters are selected
 no_filters <- function() {
   shinyjs::removeClass(id = "apply_filters", "btn-spinner")
   shinyjs::removeClass(id = "apply_filters_text", "apply-filters-ready")
   shinyjs::removeClass(id = "apply_filters_text", "filters-applied")
   shinyjs::addClass(id = "apply_filters_text", "no-filters")
   shinyjs::disable("apply_filters")
-}
-
-update_plant_list <- function(ns, details, your_border, card_ids, search_ids) {
-  if (length(details) > 0) {
-    insert_plant_cards(ns, details)
-    details |>
-      purrr::iwalk(
-        ~ plant_card_server(
-          id = .y,
-          details_record = .x,
-          your_border = your_border,
-          card_ids = card_ids,
-          search_ids = search_ids
-        )
-      )
-  }
 }

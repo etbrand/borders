@@ -1,6 +1,12 @@
-insert_plant_cards <- function(ns, plants, your_border) {
-  plant_cards <- plants |>
-    purrr::imap(~ plant_card_UI(ns(.y), .x, .y %in% names(your_border())))
+#' Insert plant cards
+#'
+#' Add plant cards to the UI
+#' @param ns Namespacing function
+#' @param details Named list of species details
+#' @param border_ids IDs of the plants in your border
+insert_plant_cards <- function(ns, details, border_ids) {
+  plant_cards <- details |>
+    purrr::imap(~ plant_card_UI(ns(.y), .x, .y %in% border_ids))
   shiny::insertUI(
     paste0("#", ns("show_more_div")),
     where = "beforeBegin",
@@ -8,6 +14,39 @@ insert_plant_cards <- function(ns, plants, your_border) {
   )
 }
 
+#' Update plant list
+#'
+#' Update both the UI and the server logic for plant cards added to the plant
+#' list
+#' @param ns Namespacing function
+#' @param details Named list of species details
+#' @param your_border A reactiveVal with plant details for your border
+#' @param card_ids A reactiveVal with the IDs of plants currently shown in the
+#' plant list
+#'@param search_ids A reactiveVal with the IDs of plants currently shown in the
+#' search results
+update_plant_list <- function(ns, details, your_border, card_ids, search_ids) {
+  if (length(details) > 0) {
+    insert_plant_cards(ns, details, names(your_border()))
+    details |>
+      purrr::iwalk(
+        ~ plant_card_server(
+          id = .y,
+          details_record = .x,
+          your_border = your_border,
+          card_ids = card_ids,
+          search_ids = search_ids
+        )
+      )
+  }
+}
+
+#' Make filters
+#'
+#' Make UI for a pickerInput filter
+#' @param id Filter ID
+#' @param ns Namespacing function
+#' @return The UI for a pickerInput filter
 make_filters <- function(id, ns) {
   tags$div(
     class = "mb-0",
@@ -27,8 +66,19 @@ make_filters <- function(id, ns) {
   )
 }
 
-#TODO see if can be used for border
-make_plant_stub <- function(id, details_record, your_border, card_ids,
+#' Make plant stub
+#'
+#' Make a plant stub for the search results or border Offcanvas
+#' @param session Session object
+#' @param ns Namespacing function, only used for stubs in the search results,
+#' which live in the choose plants module
+#' @param details_record Species details for the plant stub
+#' @param your_border A reactiveVal with plant details for your border
+#' @param card_ids A reactiveVal with the IDs of plants currently shown in the
+#' plant list
+#'@param search_ids A reactiveVal with the IDs of plants currently shown in the
+#' search results
+make_plant_stub <- function(session, id, details_record, your_border, card_ids,
                             search_ids, ns = NULL) {
 
   in_border <- id %in% names(your_border())
@@ -42,6 +92,7 @@ make_plant_stub <- function(id, details_record, your_border, card_ids,
   shinyjs::onclick(
     id = update_btn_id,
     expr = update_border(
+      session = session,
       id = id,
       your_border = your_border,
       details_record = details_record,
@@ -85,7 +136,12 @@ make_plant_stub <- function(id, details_record, your_border, card_ids,
   )
 }
 
-update_border <- function(id, your_border, details_record, card_ids,
+#' Update border
+#'
+#' Update border when a plant is added or removed. Takes care of updating any
+#' relevant UI in the border offCanvas, search results, and plant card list.
+#' @inheritParams make_plant_stub
+update_border <- function(session, id, your_border, details_record, card_ids,
                           search_ids) {
 
   border_btn_id <- paste0(id, "-border_update")
@@ -93,7 +149,7 @@ update_border <- function(id, your_border, details_record, card_ids,
 
   card_id <- paste0("choose_plants-", id, "-card")
   card_btn_id <- paste0("choose_plants-", id, "-card_update")
-#browser()
+
   if (id %in% names(your_border())) {
 
     # Remove plant from border
@@ -133,6 +189,7 @@ update_border <- function(id, your_border, details_record, card_ids,
     shiny::insertUI(
       selector = "#border_plants",
       ui = make_plant_stub(
+        session = session,
         id = id,
         your_border = your_border,
         details_record = details_record,
@@ -157,57 +214,34 @@ update_border <- function(id, your_border, details_record, card_ids,
     }
 
   }
+
+  # Update url for bookmarking
+  zone_prefix <- strsplit(isolate(session$clientData$url_hash), "-")[[1]][1]
+  if (length(your_border()) == 0) {
+    new_url <- zone_prefix
+  } else {
+    id_str <- paste(to_api_ids(names(your_border())), collapse = "-")
+    new_url <- paste0(zone_prefix, "-", id_str)
+  }
+
+  shinyjs::runjs(paste0("window.location.hash = '", new_url, "';"))
+
 }
 
-
-
-# shiny::removeUI(selector =  paste0("#", plant, "_stub"))
-# if (length(border_ids) == 0) {
-#   shinyjs::show("empty_border", asis = TRUE)
-# }
-
-# update_from_card <- function(id, species_details, your_border) {
-#   if (id %in% names(your_border())) {
-#     your_border(pop_id(your_border(), id))
-#     shinyjs::removeClass("update", "btn-remove-plant")
-#     shinyjs::removeClass("update_text", "remove-plant-text")
-#     shinyjs::addClass("update", "btn-add-plant")
-#     shinyjs::addClass("update_text", "add-plant-text")
-#   } else {
-#     your_border(c(your_border(), rlang::list2(!!id := species_details)))
-#     shinyjs::removeClass("update", "btn-add-plant")
-#     shinyjs::removeClass("update_plant_text", "add-plant-text")
-#     shinyjs::addClass("update", "btn-remove-plant")
-#     shinyjs::addClass("update_text", "remove-plant-text")
-#   }
-# }
-#
-# update_from_stub <- function(id, species_details, your_border,
-#                              from_border = TRUE) {
-#   if (id %in% names(your_border())) {
-#     your_border(pop_id(your_border(), id))
-#     shiny::removeUI(selector =  paste0("#", id, "_stub"))
-#     if (length(your_border()) == 0) {
-#       shinyjs::show("empty_border", asis = TRUE)
-#     }
-#     #TODO: Update search buttons too
-#     if (!from_border) {
-#       shinyjs::removeClass("update", "btn-stub-remove-plant", asis = from_border)
-#       shinyjs::addClass("update", "btn-stub-add-plant", asis = from_border)
-#     }
-#   } else {
-#     your_border(c(your_border(), rlang::list2(!!id := species_details)))
-#     shinyjs::removeClass("update", "btn-stub-add-plant", asis = from_border)
-#     shinyjs::addClass("update", "btn-remove-plant", asis = from_border)
-#   }
-# }
-
-update_show_more <- function(rem_pages, rem_ids, any_results = FALSE) {
+#' Update show more
+#'
+#' Update the show more button
+#' @param rem_pages Remaining pages from the species list request
+#' @param rem_ids Remaining IDs from the last batch of species list pages
+#' @param status API status ("OK" or "api_error")
+#' @param any_result Boolean - are there any results already shown in the plant
+#' list?
+update_show_more <- function(rem_pages, rem_ids, status, any_results = FALSE) {
   shinyjs::show("show_more")
   shinyjs::removeClass(id = "show_more", "btn-spinner")
   shinyjs::removeClass(id = "show_more_text", "show-more-busy")
   if (length(rem_pages) == 0 && length(rem_ids) == 0) {
-    if (!any_results) {
+    if (status == "OK" && !any_results) {
       show_no_results_modal()
       shinyjs::hide("show_more")
     } else {
@@ -219,10 +253,40 @@ update_show_more <- function(rem_pages, rem_ids, any_results = FALSE) {
     shinyjs::enable("show_more")
     shinyjs::removeClass("show_more_text", "no-more")
     shinyjs::addClass("show_more_text", "show-more-ready")
-    if (!any_results) {
-      print("NOTHING FOUND YET")
-      #TODO: Add 'nothing found yet' click show more to try again
-    }
   }
 }
 
+#' Compose filters
+#'
+#' Combine pickerInput filters and checkbox filters
+#' @param select_filters pickerInput filters
+#' @param checkbox_filters checkboxInput filters
+#' @param zone Hardiness zone
+#' @return A list with
+#' \item{url_args}{URL arguments that can be passed to a species list request}
+#' \item{addl_filters}{Additional filters to be applied after the species list
+#' request has been performed}
+compose_filters <- function(select_filters, checkbox_filters, zone) {
+  edible_filter <-
+    if (checkbox_filters$edible_only) list(edible = 1) else NULL
+  poisonous_filter <-
+    if (checkbox_filters$nonpoisonous_only) list(poisonous = 0) else NULL
+  hardiness_filter <- list(hardiness = hardiness_range(zone))
+
+  url_args <- select_filters |>
+    c(hardiness_filter, edible_filter, poisonous_filter)
+  url_args$flower_color <- NULL
+
+  addl_filters <- list(
+    include_no_img = checkbox_filters$include_no_img,
+    include_trees = checkbox_filters$include_trees
+  )
+
+  if (not_null(select_filters$flower_color)) {
+    addl_filters <- addl_filters |>
+      c(list(flower_color = select_filters$flower_color))
+  }
+
+  list(url_args = url_args, addl_filters = addl_filters)
+
+}

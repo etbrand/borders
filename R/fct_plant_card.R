@@ -16,9 +16,6 @@ simplify_plant_type <- function(plant_type) {
   if (type_like("waterlily")) {
     return("Waterlily")
   }
-  if (type_like("fruit")) {
-    return("Fruit")
-  }
   if (type_like("shrub")) {
     return("Shrub")
   }
@@ -43,7 +40,7 @@ simplify_plant_type <- function(plant_type) {
   if (type_like("weed|invasive")) {
     return("Weed")
   }
-  if (type_like("produce|vegetable")) {
+  if (type_like("produce|vegetable|fruit")) {
     return("Produce")
   }
   if (type_like("bulb")) {
@@ -62,7 +59,9 @@ simplify_plant_type <- function(plant_type) {
     return("Fern")
   }
 
-  message(paste0("No icon for plant type '", plant_type, "'"))
+  if (interactive()) {
+    message(paste0("No icon for plant type '", plant_type, "'"))
+  }
 
   plant_type
 }
@@ -77,13 +76,12 @@ plant_card_header <- function(plant_type, common_name) {
     "Conifer" = "noun-pine-5973913",
     "Fern" = "noun-fern-4273283",
     "Flower" = "noun-flower-7088847",
-    "Fruit" = "noun-fruit-6461708",
     "Grain" = "noun-wheat-124955",
     "Grass" = "noun-grass-6990187",
     "Herb" = "noun-herb-6363034",
     "Orchid" = "noun-orchid-7084860",
     "Palm" = "noun-palm-5949874",
-    "Produce" = "noun-vegetable-7110902",
+    "Produce" = "noun-vegetable-1189609",
     "Shrub" = "noun-shrub-4416049",
     "Tree" = "noun-tree-7108880",
     "Vine" = "noun-vine-2247901",

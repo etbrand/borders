@@ -36,39 +36,40 @@ ui <- function() {
         secondary = "#4F7942"
       ),
       header = tags$div(
-        id = "your_border_oc",
-        class = "offcanvas offcanvas-end",
-        tabIndex = "-1",
-        `aria-labelledby` = "your_border_header",
         tags$div(
-          class = "offcanvas-header",
-          tags$h5(
-            id = "your_border_header",
-            class = "offcanvas-title",
-            tags$span("Your border", class = "ms-2")
-          ),
-          tags$button(
-            type = "button",
-            class = "btn-close text-reset",
-            `data-bs-dismiss` = "offcanvas",
-            `aria-label` = "Close"
-          )
-        ),
-        tags$div(
-          class = "offcanvas-body",
+          id = "your_border_oc",
+          class = "offcanvas offcanvas-end",
+          tabIndex = "-1",
+          `aria-labelledby` = "your_border_header",
           tags$div(
-            tags$div(
-              id = "empty_border",
-              "Nothing in your border. Choose plants from the plant list."
+            class = "offcanvas-header",
+            tags$h5(
+              id = "your_border_header",
+              class = "offcanvas-title",
+              tags$span("Your border", class = "ms-2")
             ),
-            tags$div(id = "border_plants")
+            tags$button(
+              type = "button",
+              class = "btn-close text-reset",
+              `data-bs-dismiss` = "offcanvas",
+              `aria-label` = "Close"
+            )
+          ),
+          tags$div(
+            class = "offcanvas-body",
+            tags$div(
+              tags$div(
+                id = "empty_border",
+                "Nothing in your border. Choose plants from the plant list."
+              ),
+              tags$div(id = "border_plants")
+            )
           )
         )
       ),
-      getting_started_UI("getting_started"),
+      #getting_started_UI("getting_started"),
       choose_plants_UI("choose_plants"),
-      at_a_glance_UI("at_a_glance"),
-      care_guide_UI("care_guide")
+      border_info_UI("border_info")
     )
   )
 }
