@@ -3,18 +3,19 @@
 pkgload::load_all()
 
 get_zone_data <- function(zone) {
-  message(paste0("Fetching data for zone ", zone, "..."))
-  print(hardiness_range(zone))
+
+  message(paste0("Fetching data for ", zone, "..."))
+
   page1_resp <-
     do.call(req_species_list, list(hardiness = hardiness_range(zone))) |>
     httr2::req_perform()
   page1 <- page1_resp |>
-    process_page_resp(list(filter_no_img = TRUE, include_trees = FALSE))
+    process_page_resp(list(include_no_img = FALSE, include_trees = FALSE))
 
   page_batch <- req_page_batch(
     rem_pages = sample(2:page1$page_count),
     url_args = list(hardiness = hardiness_range(zone)),
-    addl_filters = list(filter_no_img = TRUE, include_trees = FALSE),
+    addl_filters = list(include_no_img = FALSE, include_trees = FALSE),
     pages_to_add = 5
   )
 
