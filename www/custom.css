@@ -32,18 +32,6 @@
   transition: .3s transform cubic-bezier(.155,1.105,.295,1.12),.3s box-shadow,.3s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
 }
 
-
-.border-stub-x {
-  padding-right: 10px;
-  color: #AAAAAA;
-}
-
-.border-stub-x:hover {
-  color: #919191;
-  transform: scale(1.1);
-  transition: .1s transform cubic-bezier(.155,1.105,.295,1.12),.1s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
-}
-
 .plant-color-tooltip {
   display: inline;
   position: relative;
@@ -94,6 +82,44 @@
   background-color: #D8D8D8 !important;
 }
 
+.btn-discreet-md {
+  font-size: 16px;
+  color: #494b4d !important;
+  border: none;
+  background-color: transparent;
+}
+
+.btn-discreet-md:hover {
+  background-color: #D8D8D8 !important;
+}
+
+.btn-discreet-md:disabled {
+  background-color: #AAAAAA;
+}
+
+.btn-discreet-lg {
+  font-size: 22px;
+  color: #494b4d !important;
+  border: none;
+  background-color: transparent;
+}
+
+.btn-discreet-lg:hover {
+  background-color: #D8D8D8 !important;
+}
+
+.btn-discreet-lg:disabled {
+  background-color: #AAAAAA;
+}
+
+.search-zone:after {
+  content: "Choose zone instead" !important;
+}
+
+.search-zip:after {
+  content: "Enter zipcode instead" !important;
+}
+
 .search-sn:after {
   content: "Search by scientific name" !important;
 }
@@ -111,11 +137,20 @@
 }
 
 .show-more-busy:after {
-  content: "Finding more plants..." !important;
+  content: "Searching..." !important;
+}
+
+.show-more-ready:before {
+  content: "\f078";
+  font-family: "Font Awesome 5 Free";
 }
 
 .show-more-ready:after {
-  content: "Show more" !important;
+  content: " Show more" !important;
+}
+
+.no-more:after {
+  content: " End of results";
 }
 
 .btn-spinner:before {
@@ -165,4 +200,80 @@
   content: "Apply filters" !important;
 }
 
+.filters-applied:before {
+  content: "\f00c";
+  font-family: "Font Awesome 5 Free";
+}
 
+.filters-applied:after {
+  content: " Filters applied" !important;
+}
+
+.no-filters:before {
+  content: "\58";
+  font-family: "Font Awesome 5 Free";
+}
+
+.no-filters:after {
+  content: " No filters selected" !important;
+}
+
+.fa-triangle-exclamation {
+  color: #C41E3A;
+}
+
+.fa-circle-exclamation {
+  color: #FFBF00;
+}
+
+.btn-add-plant:before {
+  content: "\2b";
+  font-family: "Font Awesome 5 Free";
+}
+
+.btn-remove-plant:before {
+  content: "\58";
+  font-family: "Font Awesome 5 Free";
+}
+
+.btn-remove-plant:hover {
+  color: white !important;
+  background-color: #494b4d !important;
+}
+
+.add-plant-text:before {
+  content: " Add to border";
+}
+
+.remove-plant-text:before {
+  content: " Remove";
+}
+
+.btn-stub {
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  padding-right: 0 !important;
+  padding-left: 0 !important;
+  color: #AAAAAA;
+}
+
+.btn-stub:hover {
+  color: #919191;
+  border-color: transparent !important;
+  transform: scale(1.1);
+  transition: .1s transform cubic-bezier(.155,1.105,.295,1.12),.1s -webkit-transform cubic-bezier(.155,1.105,.295,1.12);
+}
+
+.btn-stub-add-plant:before {
+  content: "\2b";
+  font-size: 18px;
+  font-family: "Font Awesome 5 Free";
+  color: #AAAAAA;
+}
+
+.btn-stub-remove-plant:before {
+  content: "\58";
+  font-size: 18px;
+  font-family: "Font Awesome 5 Free";
+  color: #AAAAAA;
+}
