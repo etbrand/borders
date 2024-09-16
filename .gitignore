@@ -2,3 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
+*.csv
+rsconnect
+www/noun_icons
